@@ -1,0 +1,14 @@
+[package]
+name = "advent_of_code"
+description = "Solutions for the yearly Advent of Code puzzles"
+authors = ["RemasteredArch"]
+repository = "https://github.com/RemasteredArch/advent_of_code"
+
+version = "0.1.0"
+edition = "2021"
+
+license = "GPL-3.0-or-later"
+publish = false
+readme = true
+
+[dependencies]
