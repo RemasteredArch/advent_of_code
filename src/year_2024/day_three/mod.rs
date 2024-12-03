@@ -1,35 +1,17 @@
 mod stack;
-use stack::{DoStack, DontStack, MulPattern, MulStack, Stack};
+use stack::{DoStack, DontStack, MulStack, Stack};
 
 const INPUT: &str = include_str!("./data.txt");
 const _INPUT: &str = "xmul(2,4)%&mul[3,7]!@^do_not_mul(5,5)+mul(32,64]then(mul(11,8)mul(8,5))";
 const __INPUT: &str = "xmul(2,4)&mul[3,7]!^don't()_mul(5,5)+mul(32,64](mul(11,8)undo()?mul(8,5))";
 
 pub fn part_one() -> u32 {
-    // This doesn't need to be heap allocated, it has a fixed maximum length.
     let mut stack = MulStack::new();
     let mut total: u32 = 0;
 
     for char in INPUT.chars() {
-        // The expected value of the current character, based on the current top of the stack.
-        let mut ideal_next = stack.ideal_next();
-
-        // If no character is expected, that means the stack is finished and can be evaluated.
-        if ideal_next == MulPattern::None {
-            // Drain the stack and evaluate the result.
-            total += stack.eval();
-
-            // Reset the expectation for the newly-emptied stack.
-            ideal_next = stack.ideal_next();
-        }
-
-        if ideal_next == char {
-            // Current stack is still valid, add to it.
-            stack.push(char);
-        } else {
-            // Current stack is invalid, clear it.
-            stack.clear();
-        }
+        total += stack.eval_if_valid();
+        stack.push_or_clear(char);
     }
 
     total
