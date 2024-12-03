@@ -108,17 +108,12 @@ pub fn part_two() -> u32 {
             };
 
             if !ACCEPTABLE_DIFFERENCE.contains(&last.abs_diff(*value)) {
-                println!(
-                    "Diff: unsafe at {value} (diff {}): {report:?}",
-                    last.abs_diff(*value)
-                );
                 return Report::Unsafe;
             }
 
             prev = Some(value);
         }
 
-        println!("Diff: safe: {report:?}");
         Report::Safe
     }
 
