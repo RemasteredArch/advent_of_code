@@ -15,12 +15,34 @@ macro_rules! safe_or_break {
 }
 
 const INPUT: &str = include_str!("./data.txt");
+const _INPUT: &str = "7 6 4 2 1
+1 2 7 8 9
+9 7 6 2 1
+1 3 2 4 5
+8 6 4 4 1
+1 3 6 7 9";
 const ACCEPTANCE_DIFFERENCE: std::ops::RangeInclusive<u32> = 1..=3;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 enum Report {
     Safe,
     Unsafe,
+}
+
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+enum TolerantReport {
+    Safe,
+    SingleUnsafe,
+    DoubleUnsafe,
+}
+
+impl TolerantReport {
+    pub fn advance(&mut self) {
+        *self = match self {
+            Self::Safe => Self::SingleUnsafe,
+            _ => Self::DoubleUnsafe,
+        };
+    }
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -74,8 +96,63 @@ pub fn part_one() -> u32 {
         .unwrap()
 }
 
+// This does not currently work for the full data set.
 pub fn part_two() -> u32 {
-    todo!()
+    fn evaluate(report: &Vec<u32>) -> (TolerantReport, Option<usize>) {
+        let mut previous = None;
+        let mut direction = None;
+        let mut safe = TolerantReport::Safe;
+        let mut first_unsafe_index = None;
+
+        for (index, level) in report.iter().enumerate() {
+            let Some(last) = previous else {
+                previous = Some(level);
+                continue;
+            };
+
+            if verify_difference(*last, *level) == Report::Unsafe
+                || verify_or_set_direction(*last, *level, &mut direction) == Report::Unsafe
+            {
+                print!("   ╭─ {report:?} at {level}\n   ╰─ {safe:?} -> ");
+                safe.advance();
+                println!("{safe:?}\n");
+                match safe {
+                    TolerantReport::SingleUnsafe => first_unsafe_index = Some(index),
+                    TolerantReport::DoubleUnsafe => break,
+                    _ => (),
+                }
+            }
+
+            previous = Some(level);
+        }
+
+        println!("╭─ {report:?}\n╰─ {safe:?}\n");
+
+        (safe, first_unsafe_index)
+    }
+
+    let reports = parse(INPUT);
+
+    reports
+        .into_iter()
+        .filter(|report| {
+            let (safe, unsafe_index) = evaluate(report);
+            match safe {
+                TolerantReport::Safe => true,
+                TolerantReport::SingleUnsafe => {
+                    println!("# Retrying {report:?} ({safe:?})\n");
+                    let mut report = report.clone();
+                    report.remove(unsafe_index.unwrap());
+                    let result = evaluate(&report).0;
+                    println!("# Retried {report:?} ({result:?})\n");
+                    result == TolerantReport::Safe
+                }
+                TolerantReport::DoubleUnsafe => false,
+            }
+        })
+        .count()
+        .try_into()
+        .unwrap()
 }
 
 /// Adjacent levels must differ by at least one and at most three.
