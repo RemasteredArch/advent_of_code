@@ -1,7 +1,5 @@
 #![allow(unused)]
 
-use std::str::CharIndices;
-
 /// A grid of characters. Every line is guaranteed to be of the same length.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Grid {
@@ -77,22 +75,27 @@ impl Grid {
         Some(str.into())
     }
 
+    pub fn chars(&self) -> impl Iterator<Item = char> + use<'_> {
+        self.grid.iter().flat_map(|row| row.chars())
+    }
+
     pub fn char_indices(&self) -> impl Iterator<Item = (GridIndex, char)> + use<'_> {
         // Assumes that these will never change.
         let max_column_index = self.columns() - 1;
         let max_row_index = self.rows() - 1;
 
-        let mut rows = self.grid.iter().enumerate().map(move |(row_index, row)| {
-            row.char_indices().map(move |(column_index, char)| {
-                (
-                    GridIndex::new(column_index, row_index, max_column_index, max_row_index)
-                        .expect("`self.grid.iter()` will not exceed the bounds of `self.grid`"),
-                    char,
-                )
+        self.grid
+            .iter()
+            .enumerate()
+            .flat_map(move |(row_index, row)| {
+                row.char_indices().map(move |(column_index, char)| {
+                    (
+                        GridIndex::new(column_index, row_index, max_column_index, max_row_index)
+                            .expect("`self.grid.iter()` will not exceed the bounds of `self.grid`"),
+                        char,
+                    )
+                })
             })
-        });
-
-        rows.flatten()
     }
 }
 
