@@ -13,8 +13,13 @@ SMSMSASXSS
 SAXAMASAAA
 MAMMMXMMMM
 MXMXAXMASX";
-const PATTERN: &str = "XMAS";
 
 pub fn part_one() -> u32 {
+    const PATTERN: &str = "XMAS";
+
     grid::Grid::new(INPUT).unwrap().search_all(PATTERN)
+}
+
+pub fn part_two() -> u32 {
+    grid::Grid::new(INPUT).unwrap().search_all_cross("MAS")
 }

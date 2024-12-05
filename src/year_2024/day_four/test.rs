@@ -90,3 +90,40 @@ fn test_grid_iter() -> Result {
 
     Ok(())
 }
+
+#[test]
+fn test_cross() -> Result {
+    /// Expecting 9 matches:
+    ///
+    /// ```txt
+    /// .M.S......
+    /// ..A..MSMS.
+    /// .M.S.MAA..
+    /// ..A.ASMSM.
+    /// .M.S.M....
+    /// ..........
+    /// S.S.S.S.S.
+    /// .A.A.A.A..
+    /// M.M.M.M.M.
+    /// ..........
+    /// ```
+    const INPUT: &str = "MMMSXXMASM
+MSAMXMSMSA
+AMXSXMAAMM
+MSAMASMSMX
+XMASAMXAMM
+XXAMMXXAMA
+SMSMSASXSS
+SAXAMASAAA
+MAMMMXMMMM
+MXMXAXMASX";
+
+    assert_eq!(
+        9,
+        Grid::new(INPUT)
+            .ok_or("failed to construct grid")?
+            .search_all_cross("MAS")
+    );
+
+    Ok(())
+}

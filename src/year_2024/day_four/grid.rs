@@ -96,6 +96,78 @@ impl Grid {
             .sum()
     }
 
+    /// Requires matches that cross in an `X` (not `+`), regardless of direction. E.g.,
+    ///
+    /// ```text
+    /// M.S
+    /// .A.
+    /// M.S
+    /// ```
+    ///
+    /// And
+    ///
+    /// ```text
+    /// M.M
+    /// .A.
+    /// S.S
+    /// ```
+    ///
+    /// Both match `pattern = MAS`, but not:
+    ///
+    /// ```text
+    /// M..
+    /// .A.
+    /// ..S
+    /// ```
+    ///
+    /// Or
+    ///
+    /// ```text
+    /// .M.
+    /// MAS
+    /// .S.
+    /// ```
+    pub fn match_cross(&self, index: GridIndex, pattern: &str) -> bool {
+        let mut count = 0;
+
+        // ```
+        //   Preceding (length 3)
+        //   |   Following (length 3)
+        //   |   |
+        //   v   v
+        //  |-| |-|
+        // "1234567"
+        //     ^ Middle value (index 3)
+        // ```
+        let middle_index = (pattern.len() - 1) / 2; // Corresponds to `index` in the 2D grid.
+        let preceding_len = middle_index;
+
+        for direction in Direction::ordinal() {
+            let Some(preceding_index) = index.step(preceding_len, direction.reverse()) else {
+                continue;
+            };
+
+            if self
+                .directional(preceding_index, pattern.len(), direction)
+                .is_some_and(|str| str.as_ref() == pattern)
+            {
+                count += 1;
+            }
+        }
+
+        count >= 2
+    }
+
+    pub fn search_all_cross(&self, pattern: &str) -> u32 {
+        self.char_indices()
+            .filter(|(index, _)| self.match_cross(*index, pattern))
+            .count()
+            .try_into()
+            // Safety: None, I'm letting this one crash. It's not intended for matching on the
+            // scale of [`u32::MAX`].
+            .unwrap()
+    }
+
     pub fn chars(&self) -> impl Iterator<Item = char> + use<'_> {
         self.grid.iter().flat_map(|row| row.chars())
     }
@@ -240,5 +312,19 @@ impl Direction {
         Box::new([
             North, South, East, West, Northeast, Northwest, Southeast, Southwest,
         ])
+    }
+
+    /// The cardinal directions in [`Self`]. Makes no guarantees regarding ordering.
+    pub fn cardinal() -> Box<[Self]> {
+        use Direction::*;
+
+        Box::new([North, South, East, West])
+    }
+
+    /// The non-cardinal directions in [`Self`]. Makes no guarantees regarding ordering.
+    pub fn ordinal() -> Box<[Self]> {
+        use Direction::*;
+
+        Box::new([Northeast, Northwest, Southeast, Southwest])
     }
 }
