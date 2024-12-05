@@ -75,6 +75,27 @@ impl Grid {
         Some(str.into())
     }
 
+    pub fn search_surrounding(&self, index: GridIndex, pattern: &str) -> u32 {
+        let mut count = 0;
+
+        for direction in Direction::all() {
+            if self
+                .directional(index, pattern.len(), direction)
+                .is_some_and(|str| str.as_ref() == pattern)
+            {
+                count += 1;
+            }
+        }
+
+        count
+    }
+
+    pub fn search_all(&self, pattern: &str) -> u32 {
+        self.char_indices()
+            .map(|(index, _)| self.search_surrounding(index, pattern))
+            .sum()
+    }
+
     pub fn chars(&self) -> impl Iterator<Item = char> + use<'_> {
         self.grid.iter().flat_map(|row| row.chars())
     }
@@ -122,7 +143,12 @@ impl GridIndex {
     }
 
     pub fn from_grid(column: usize, row: usize, grid: &Grid) -> Option<Self> {
-        Self::new(column, row, grid.columns() - 1, grid.rows() - 1)
+        Self::new(
+            column,
+            row,
+            grid.columns().checked_sub(1)?,
+            grid.rows().checked_sub(1)?,
+        )
     }
 
     pub fn row(&self) -> usize {
@@ -205,5 +231,14 @@ impl Direction {
             Southeast => Northwest,
             Southwest => Northeast,
         }
+    }
+
+    /// Every option for [`Self`]. Makes no guarantees regarding ordering.
+    pub fn all() -> Box<[Self]> {
+        use Direction::*;
+
+        Box::new([
+            North, South, East, West, Northeast, Northwest, Southeast, Southwest,
+        ])
     }
 }
