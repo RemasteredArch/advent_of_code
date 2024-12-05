@@ -75,14 +75,16 @@ impl Grid {
         Some(str.into())
     }
 
+    pub fn match_directional(&self, index: GridIndex, pattern: &str, direction: Direction) -> bool {
+        self.directional(index, pattern.len(), direction)
+            .is_some_and(|str| str.as_ref() == pattern)
+    }
+
     pub fn search_surrounding(&self, index: GridIndex, pattern: &str) -> u32 {
         let mut count = 0;
 
         for direction in Direction::all() {
-            if self
-                .directional(index, pattern.len(), direction)
-                .is_some_and(|str| str.as_ref() == pattern)
-            {
+            if self.match_directional(index, pattern, direction) {
                 count += 1;
             }
         }
@@ -147,10 +149,7 @@ impl Grid {
                 continue;
             };
 
-            if self
-                .directional(preceding_index, pattern.len(), direction)
-                .is_some_and(|str| str.as_ref() == pattern)
-            {
+            if self.match_directional(preceding_index, pattern, direction) {
                 count += 1;
             }
         }
