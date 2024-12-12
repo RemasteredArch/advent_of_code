@@ -14,6 +14,10 @@ pub struct Updates<T: Ord + Hash + FromStr + Copy + Debug> {
 }
 
 impl<T: Ord + Hash + FromStr + Copy + Debug> Updates<T> {
+    pub fn rules(&self) -> &RulesMap<T> {
+        &self.rules
+    }
+
     pub fn from_str(input: &str) -> Option<Self> {
         let mut lines = input.lines();
         let mut rules = RulesMap::new();
@@ -184,46 +188,79 @@ impl<T: Ord + Hash + Copy + Debug> Update<T> {
         self.inner.len()
     }
 
-    pub fn is_sorted(&self, rules: &RulesMap<T>) -> bool {
+    /// Prone to stack overflows.
+    pub fn sorted(&self, rules: &RulesMap<T>) -> Sorted {
         let update = &self.inner;
 
         for (index, value) in update.iter().enumerate() {
             // Treat a value as incorrectly sorted if there's no rules on sorting it.
             let Some(rules) = rules.get(value) else {
-                println!("No rules!");
-                return false;
+                return Sorted::MissingRule { index };
             };
 
             // Check that every value to the left of [`value`] should actually be to its left.
-            if update
-                .iter()
-                .take(index)
-                .skip_while(|prev| rules.left().contains(prev))
-                .count()
-                != 0
+            if let Some(cause_index) =
+                update
+                    .iter()
+                    .enumerate()
+                    .take(index)
+                    .find_map(|(index, prev)| {
+                        if rules.left().contains(prev) {
+                            None
+                        } else {
+                            Some(index)
+                        }
+                    })
             {
-                return false;
+                return Sorted::Unsorted {
+                    unsorted_index: index,
+                    cause_index,
+                };
             }
 
             // Check that every value to the right of [`value`] should actually be to its
             // right.
-            if update
-                .iter()
-                .skip(index + 1)
-                .skip_while(|after| rules.right().contains(after))
-                .count()
-                != 0
+            if let Some(cause_index) =
+                update
+                    .iter()
+                    .enumerate()
+                    .skip(index + 1)
+                    .find_map(|(index, after)| {
+                        if rules.right().contains(after) {
+                            None
+                        } else {
+                            Some(index)
+                        }
+                    })
             {
-                return false;
+                return Sorted::Unsorted {
+                    unsorted_index: index,
+                    cause_index,
+                };
             }
         }
 
-        // All values are valid, return the middle value.
-        true
+        // All values are valid.
+        Sorted::Sorted
     }
 
-    pub fn sort(&mut self) {
-        todo!();
+    pub fn is_sorted(&self, rules: &RulesMap<T>) -> bool {
+        matches!(self.sorted(rules), Sorted::Sorted)
+    }
+
+    pub fn sort(&mut self, rules: &RulesMap<T>) {
+        let (unsorted_index, cause_index) = match self.sorted(rules) {
+            Sorted::Sorted => return,
+            Sorted::MissingRule { index: _ } => return,
+            Sorted::Unsorted {
+                unsorted_index,
+                cause_index,
+            } => (unsorted_index, cause_index),
+        };
+
+        self.inner.swap(unsorted_index, cause_index);
+
+        self.sort(rules);
     }
 }
 
@@ -235,8 +272,21 @@ impl<T: Ord + Hash + Copy + Debug> From<Vec<T>> for Update<T> {
     }
 }
 
+#[derive(Debug)]
+pub enum Sorted {
+    Sorted,
+    Unsorted {
+        unsorted_index: usize,
+        cause_index: usize,
+    },
+    MissingRule {
+        index: usize,
+    },
+}
+
 /// Whether some right hand value should be stored to the right or the left of some left hand
 /// value.
+#[derive(Debug)]
 pub enum Ordering {
     /// The given value should be stored to the left of the initial value.
     Left,

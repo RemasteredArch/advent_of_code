@@ -36,6 +36,8 @@ const _INPUT: &str = "47|53
 pub fn part_one() -> u32 {
     let updates = Updates::from_str(_INPUT).unwrap();
 
+    assert!(updates.sorted_updates().count() > 0);
+
     updates
         .sorted_updates()
         // Take the sum of all the middle values.
@@ -44,12 +46,17 @@ pub fn part_one() -> u32 {
 }
 
 pub fn part_two() -> u32 {
-    let mut updates: Updates<u32> = Updates::from_str(_INPUT).unwrap();
+    let mut updates: Updates<u32> = Updates::from_str(INPUT).unwrap();
+    let rules = updates.rules().clone(); // Evil
 
+    #[expect(
+        clippy::manual_inspect,
+        reason = "need a mutable reference, which `inspect` does not provide"
+    )]
     updates
         .unsorted_updates_mut()
         .map(|update| {
-            update.sort();
+            update.sort(&rules);
             update
         })
         // Take the sum of all the middle values.
