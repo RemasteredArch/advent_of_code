@@ -26,5 +26,5 @@ fn main() {
     println!("  - Part Two: {}", year_2024::day_four::part_two());
     println!("- Day five");
     println!("  - Part One: {}", year_2024::day_five::part_one());
-    // println!("  - Part Two: {}", year_2024::day_four::part_two());
+    println!("  - Part Two: {}", year_2024::day_five::part_two());
 }
