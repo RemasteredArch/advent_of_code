@@ -273,6 +273,7 @@ impl<T: Ord + Hash + Copy + Debug> From<Vec<T>> for Update<T> {
 }
 
 #[derive(Debug)]
+#[expect(unused)]
 pub enum Sorted {
     Sorted,
     Unsorted {
