@@ -198,7 +198,7 @@ impl Coord {
         // This is nasty. There's got to be a better way!
         fn add(unsigned: usize, signed: isize) -> Result<usize, AddError> {
             let as_signed: isize = unsigned.try_into().map_err(|_| AddError::Overflow)?;
-            if as_signed < signed {
+            if as_signed.checked_add(signed).is_none_or(|v| v < 0) {
                 return Err(AddError::OutOfBounds);
             }
 
