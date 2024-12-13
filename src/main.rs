@@ -13,21 +13,21 @@ fn main() {
 
     println!("Year 2024");
     println!("- Day One");
-    println!("  - Part One: {}", year_2024::day_one::part_one());
-    println!("  - Part Two: {}", year_2024::day_one::part_two());
+    println!("  - Part One: {}", year_2024::day_01::part_one());
+    println!("  - Part Two: {}", year_2024::day_01::part_two());
     println!("- Day Two");
-    println!("  - Part One: {}", year_2024::day_two::part_one());
-    println!("  - Part Two: {}", year_2024::day_two::part_two());
+    println!("  - Part One: {}", year_2024::day_02::part_one());
+    println!("  - Part Two: {}", year_2024::day_02::part_two());
     println!("- Day Three");
-    println!("  - Part One: {}", year_2024::day_three::part_one());
-    println!("  - Part Two: {}", year_2024::day_three::part_two());
+    println!("  - Part One: {}", year_2024::day_03::part_one());
+    println!("  - Part Two: {}", year_2024::day_03::part_two());
     println!("- Day four");
-    println!("  - Part One: {}", year_2024::day_four::part_one());
-    println!("  - Part Two: {}", year_2024::day_four::part_two());
+    println!("  - Part One: {}", year_2024::day_04::part_one());
+    println!("  - Part Two: {}", year_2024::day_04::part_two());
     println!("- Day five");
-    println!("  - Part One: {}", year_2024::day_five::part_one());
-    println!("  - Part Two: {}", year_2024::day_five::part_two());
+    println!("  - Part One: {}", year_2024::day_05::part_one());
+    println!("  - Part Two: {}", year_2024::day_05::part_two());
     println!("- Day six");
-    println!("  - Part One: {}", year_2024::day_six::part_one());
-    // println!("  - Part Two: {}", year_2024::day_six::part_two());
+    println!("  - Part One: {}", year_2024::day_06::part_one());
+    // println!("  - Part Two: {}", year_2024::day_06::part_two());
 }

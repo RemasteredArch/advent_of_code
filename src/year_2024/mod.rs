@@ -1,6 +1,6 @@
-pub mod day_five;
-pub mod day_four;
-pub mod day_one;
-pub mod day_six;
-pub mod day_three;
-pub mod day_two;
+pub mod day_01;
+pub mod day_02;
+pub mod day_03;
+pub mod day_04;
+pub mod day_05;
+pub mod day_06;
