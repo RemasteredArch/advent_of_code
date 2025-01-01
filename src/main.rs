@@ -21,13 +21,16 @@ fn main() {
     println!("- Day Three");
     println!("  - Part One: {}", year_2024::day_03::part_one());
     println!("  - Part Two: {}", year_2024::day_03::part_two());
-    println!("- Day four");
+    println!("- Day Four");
     println!("  - Part One: {}", year_2024::day_04::part_one());
     println!("  - Part Two: {}", year_2024::day_04::part_two());
-    println!("- Day five");
+    println!("- Day Five");
     println!("  - Part One: {}", year_2024::day_05::part_one());
     println!("  - Part Two: {}", year_2024::day_05::part_two());
-    println!("- Day six");
+    println!("- Day Six");
     println!("  - Part One: {}", year_2024::day_06::part_one());
     // println!("  - Part Two: {}", year_2024::day_06::part_two());
+    println!("- Day Seven");
+    println!("  - Part One: {}", year_2024::day_07::part_one());
+    // println!("  - Part Two: {}", year_2024::day_07::part_two());
 }
