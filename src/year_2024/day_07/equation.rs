@@ -1,5 +1,6 @@
-use std::num::NonZeroUsize;
+use std::{fmt::Display, num::NonZeroUsize};
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct Equation {
     expected_value: u32,
     inputs: Box<[u32]>,
@@ -13,11 +14,11 @@ impl Equation {
         }
     }
 
-    pub fn value(&self) -> u32 {
+    pub fn expected_value(&self) -> u32 {
         self.expected_value
     }
 
-    pub fn numbers(&self) -> &[u32] {
+    pub fn inputs(&self) -> &[u32] {
         &self.inputs
     }
 
@@ -28,38 +29,66 @@ impl Equation {
             _ => (),
         }
 
+        // All of these values could fit in like... a [`u16`], so all these casts are safe.
         let operations = NonZeroUsize::new(self.inputs.len() - 1).expect("`inputs` is length >1");
-        // Standardizes bit order (`11 => 1101 0000 0000 0000 ...`) to get the length of the bits
-        // needed to hold `operations`.
-        let bits = (NonZeroUsize::BITS - operations.get().to_le().reverse_bits().trailing_zeros())
-            as usize;
-        println!("{operations} operations ({bits} bits long)");
 
-        for i in 0..2_usize.pow(bits as u32) {
+        for i in 0..2_usize.pow(operations.get() as u32) {
             // Standardizes bit order: `11 => 1101 0000 0000 0000 ...`.
             //
             // Makes the assumption that the most significant bit is always first, regardless of
             // byte endianness.
             let standard = i.to_le().reverse_bits();
 
-            // Convert to string, iterate over to form operations...
-            let mut str = format!(
+            // Convert to binary string, then truncate to the relevant length, and convert the
+            // binary to [`Operation`]s.
+            let mut operations = format!(
                 "{:0>width$b}",
                 standard,
                 width = NonZeroUsize::BITS as usize
-            );
-            str.truncate(bits);
+            )
+            .chars()
+            .take(operations.get())
+            .filter_map(|c| c.try_into().ok())
+            .collect::<Vec<Operation>>();
 
-            println!("{i} -> {str}");
+            let mut iter = self.inputs.iter();
+            let mut acculumated = *iter.next().expect("`inputs` is length >1");
+            print!("{}: {acculumated}", self.expected_value);
+            for value in iter {
+                let operator = operations
+                    .pop()
+                    .expect("`operations` is `inputs.len() - 1` in a loop of `inputs.len() - 1`");
+
+                print!(" {operator} {value}");
+                acculumated = operator.apply(acculumated, *value);
+            }
+            print!(" = {acculumated}");
+
+            if acculumated == self.expected_value {
+                println!(" (valid)");
+                return true;
+            }
+
+            println!();
         }
 
-        todo!()
+        false
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Operation {
     Add,
     Multiply,
+}
+
+impl Operation {
+    pub fn apply(&self, lhs: u32, rhs: u32) -> u32 {
+        match self {
+            Self::Add => lhs + rhs,
+            Self::Multiply => lhs * rhs,
+        }
+    }
 }
 
 impl From<Operation> for char {
@@ -90,13 +119,23 @@ impl From<bool> for Operation {
 }
 
 impl TryFrom<char> for Operation {
+    // I do not feel like making an error type to communicate that a character is not in the list
+    // of convertible characters. Treat this like an [`Option`].
     type Error = ();
 
     fn try_from(value: char) -> Result<Self, Self::Error> {
         match value {
             '+' => Ok(Operation::Add),
+            '0' => Ok(true.into()),
             '*' => Ok(Operation::Multiply),
+            '1' => Ok(false.into()),
             _ => Err(()),
         }
+    }
+}
+
+impl Display for Operation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", Into::<char>::into(*self))
     }
 }

@@ -5,7 +5,7 @@ mod equation;
 use equation::Equation;
 
 const INPUT: &str = include_str!("./data.txt");
-const EXAMPLE_INPUT: &str = "190: 10 19 55 66
+const EXAMPLE_INPUT: &str = "190: 10 19
 3267: 81 40 27
 83: 17 5
 156: 15 6
@@ -16,11 +16,13 @@ const EXAMPLE_INPUT: &str = "190: 10 19 55 66
 292: 11 6 16 20";
 
 pub fn part_one() -> u32 {
-    let equations = parse_input(EXAMPLE_INPUT).unwrap();
+    let equations = parse_input(INPUT).unwrap();
 
-    let valid = equations.iter().filter(|e| e.is_valid()).count();
-
-    todo!();
+    equations
+        .iter()
+        .filter(|e| e.is_valid())
+        .map(|e| e.expected_value())
+        .sum()
 }
 
 fn parse_input(input: &str) -> Option<Box<[Equation]>> {
@@ -32,6 +34,7 @@ fn parse_input(input: &str) -> Option<Box<[Equation]>> {
     for line in input.lines() {
         let (expected_value, inputs) = line.split_once(": ")?;
 
+        // Currently errors on a value larger than `u32::MAX`.
         let expected_value: u32 = expected_value.parse().ok()?;
         let inputs: Box<[u32]> = inputs
             .split(' ')
