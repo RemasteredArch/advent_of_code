@@ -23,6 +23,8 @@ impl Equation {
         &self.inputs
     }
 
+    /// Tests all possible combinations of [`Operation`]s on [`Self::inputs`] to see if any match
+    /// [`Self::expected_value`]. If any match, return `true`, else `false`.
     pub fn is_valid(&self) -> bool {
         match self.inputs.len() {
             0 => return false,
@@ -33,6 +35,9 @@ impl Equation {
         // All of these values could fit in like... a [`u16`], so all these casts are safe.
         let operations = NonZeroUsize::new(self.inputs.len() - 1).expect("`inputs` is length >1");
 
+        // Represents each operator as bits in a binary word, which means that iterating over the
+        // values from zero to the max value of an unsigned integer of length `operations` will hit
+        // every possible combination of operators.
         for i in 0..2_usize.pow(operations.get() as u32) {
             // Standardizes bit order: `11 => 1101 0000 0000 0000 ...`.
             //
@@ -42,35 +47,26 @@ impl Equation {
 
             // Convert to binary string, then truncate to the relevant length, and convert the
             // binary to [`Operation`]s.
-            let mut operations = format!(
-                "{:0>width$b}",
-                standard,
-                width = NonZeroUsize::BITS as usize
-            )
-            .chars()
-            .take(operations.get())
-            .filter_map(|c| c.try_into().ok())
-            .collect::<Vec<Operation>>();
+            let mut operations: Vec<Operation> =
+                format!("{standard:0>width$b}", width = NonZeroUsize::BITS as usize)
+                    .chars()
+                    .take(operations.get())
+                    .filter_map(|c| c.try_into().ok())
+                    .collect();
 
+            // Applies the `operations` on `self.inputs`.
             let mut iter = self.inputs.iter();
             let mut acculumated = *iter.next().expect("`inputs` is length >1");
-            print!("{}: {acculumated}", self.expected_value);
             for value in iter {
-                let operator = operations
+                acculumated = operations
                     .pop()
-                    .expect("`operations` is `inputs.len() - 1` in a loop of `inputs.len() - 1`");
-
-                print!(" {operator} {value}");
-                acculumated = operator.apply(acculumated, *value);
+                    .expect("`operations` is `inputs.len() - 1` in a loop of `inputs.len() - 1`")
+                    .apply(acculumated, *value);
             }
-            print!(" = {acculumated}");
 
             if acculumated == self.expected_value {
-                println!(" (valid)");
                 return true;
             }
-
-            println!();
         }
 
         false
