@@ -29,14 +29,28 @@ impl Equation {
         }
 
         let operations = NonZeroUsize::new(self.inputs.len() - 1).expect("`inputs` is length >1");
+        // Standardizes bit order (`11 => 1101 0000 0000 0000 ...`) to get the length of the bits
+        // needed to hold `operations`.
+        let bits = (NonZeroUsize::BITS - operations.get().to_le().reverse_bits().trailing_zeros())
+            as usize;
+        println!("{operations} operations ({bits} bits long)");
 
-        println!("{operations}");
-
-        for i in 0..operations.get() {
-            // Standardizes bit order: `11 => 1101 0000 0000 0000 ...`
+        for i in 0..2_usize.pow(bits as u32) {
+            // Standardizes bit order: `11 => 1101 0000 0000 0000 ...`.
+            //
+            // Makes the assumption that the most significant bit is always first, regardless of
+            // byte endianness.
             let standard = i.to_le().reverse_bits();
+
             // Convert to string, iterate over to form operations...
-            println!("{i} {:0>64b}", standard);
+            let mut str = format!(
+                "{:0>width$b}",
+                standard,
+                width = NonZeroUsize::BITS as usize
+            );
+            str.truncate(bits);
+
+            println!("{i} -> {str}");
         }
 
         todo!()
