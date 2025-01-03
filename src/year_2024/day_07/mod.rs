@@ -2,6 +2,7 @@
 
 mod equation;
 
+use crate::Integer;
 use equation::Equation;
 
 const INPUT: &str = include_str!("./data.txt");
@@ -15,7 +16,7 @@ const EXAMPLE_INPUT: &str = "190: 10 19
 21037: 9 7 18 13
 292: 11 6 16 20";
 
-pub fn part_one() -> u32 {
+pub fn part_one() -> Integer {
     let equations = parse_input(INPUT).unwrap();
 
     equations
@@ -34,9 +35,8 @@ fn parse_input(input: &str) -> Option<Box<[Equation]>> {
     for line in input.lines() {
         let (expected_value, inputs) = line.split_once(": ")?;
 
-        // Currently errors on a value larger than `u32::MAX`.
-        let expected_value: u32 = expected_value.parse().ok()?;
-        let inputs: Box<[u32]> = inputs
+        let expected_value: Integer = expected_value.parse().ok()?;
+        let inputs: Box<[Integer]> = inputs
             .split(' ')
             // Should this ignore errors like this?
             .filter_map(|n| n.parse().ok())

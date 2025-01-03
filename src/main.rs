@@ -1,5 +1,7 @@
 mod year_2024;
 
+type Integer = u64;
+
 // TODO: macro wizardry to make this less manual
 
 #[allow(unused_variables)]

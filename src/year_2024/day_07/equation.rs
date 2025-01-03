@@ -1,24 +1,25 @@
+use crate::Integer;
 use std::{fmt::Display, num::NonZeroUsize};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Equation {
-    expected_value: u32,
-    inputs: Box<[u32]>,
+    expected_value: Integer,
+    inputs: Box<[Integer]>,
 }
 
 impl Equation {
-    pub fn new(expected_value: u32, inputs: Box<[u32]>) -> Self {
+    pub fn new(expected_value: Integer, inputs: Box<[Integer]>) -> Self {
         Self {
             expected_value,
             inputs,
         }
     }
 
-    pub fn expected_value(&self) -> u32 {
+    pub fn expected_value(&self) -> Integer {
         self.expected_value
     }
 
-    pub fn inputs(&self) -> &[u32] {
+    pub fn inputs(&self) -> &[Integer] {
         &self.inputs
     }
 
@@ -83,7 +84,7 @@ pub enum Operation {
 }
 
 impl Operation {
-    pub fn apply(&self, lhs: u32, rhs: u32) -> u32 {
+    pub fn apply(&self, lhs: Integer, rhs: Integer) -> Integer {
         match self {
             Self::Add => lhs + rhs,
             Self::Multiply => lhs * rhs,
