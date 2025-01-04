@@ -16,7 +16,7 @@ pub fn to_binary_operations(int: usize, length: usize) -> Vec<Operation> {
 
 /// Convert to ternary string and truncate to the relevant length.
 pub fn to_ternary_operations(int: usize, length: usize) -> Vec<Operation> {
-    ternary_to_operations(to_base(3, int, length))
+    to_base_operations(3, int, length)
 }
 
 /// Convert from a ternary (or binary) string into [`Operation`]s.
@@ -32,7 +32,7 @@ fn standardize(int: usize) -> usize {
     int.to_le().reverse_bits()
 }
 
-fn to_base(base: usize, int: usize, length: usize) -> String {
+pub fn to_base_operations(base: usize, int: usize, length: usize) -> Vec<Operation> {
     let mut str = "".to_string();
     let mut int = int;
 
@@ -43,5 +43,5 @@ fn to_base(base: usize, int: usize, length: usize) -> String {
         str.push_str(&remainder.to_string());
     }
 
-    format!("{str:0<width$}", width = length)
+    ternary_to_operations(format!("{str:0<width$}", width = length))
 }

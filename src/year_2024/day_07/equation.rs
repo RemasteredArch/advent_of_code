@@ -1,4 +1,5 @@
 use crate::Integer;
+use core::panic;
 use std::{fmt::Display, num::NonZeroUsize, str::FromStr};
 
 use super::base;
@@ -29,32 +30,38 @@ impl Equation {
     /// [`Self::inputs`] to see if any match [`Self::expected_value`]. If any match, return `true`,
     /// else `false`.
     pub fn is_valid_binary(&self) -> bool {
+        self.is_valid(2)
+    }
+
+    /// Tests all possible combinations of [`Operation`]s on [`Self::inputs`] to see if any match
+    /// [`Self::expected_value`]. If any match, return `true`, else `false`.
+    pub fn is_valid_ternary(&self) -> bool {
+        self.is_valid(3)
+    }
+
+    fn is_valid(&self, base: usize) -> bool {
+        if base > Operation::base() {
+            panic!(
+                "invalid base (received {base}, expected <= {})",
+                Operation::base()
+            )
+        }
+
         match self.inputs.len() {
             0 => return false,
             1 => return self.expected_value == *self.inputs.first().expect("`inputs` is length 1"),
             _ => (),
         }
 
-        // All of these values could fit in like... a [`u16`], so all these casts are safe.
-        let operations = NonZeroUsize::new(self.inputs.len() - 1).expect("`inputs` is length >1");
+        let operations = self.inputs.len() - 1;
 
-        // Represents each operator as bits in a binary word, which means that iterating over the
-        // values from zero to the max value of an unsigned integer of length `operations` will hit
-        // every possible combination of operators.
-        for i in 0..2_usize.pow(operations.get() as u32) {
-            let mut operations = base::to_binary_operations(i, operations.into());
+        for i in 0..base.pow(operations as u32) {
+            let mut operations = base::to_base_operations(base, i, operations);
 
-            // Applies the `operations` on `self.inputs`.
-            let mut iter = self.inputs.iter();
-            let mut acculumated = *iter.next().expect("`inputs` is length >1");
-            for value in iter {
-                acculumated = operations
-                    .pop()
-                    .expect("`operations` is `inputs.len() - 1` in a loop of `inputs.len() - 1`")
-                    .apply(acculumated, *value);
-            }
-
-            if acculumated == self.expected_value {
+            if self.apply(operations).expect(
+                "`operations` is `inputs.len() - 1` in a loop of `inputs.len() - 1` and is > 0",
+            ) == self.expected_value
+            {
                 return true;
             }
         }
@@ -62,37 +69,29 @@ impl Equation {
         false
     }
 
-    /// Tests all possible combinations of [`Operation`]s on [`Self::inputs`] to see if any match
-    /// [`Self::expected_value`]. If any match, return `true`, else `false`.
-    pub fn is_valid_ternary(&self) -> bool {
+    pub fn apply(&self, mut operations: Vec<Operation>) -> Option<Integer> {
         match self.inputs.len() {
-            0 => return false,
-            1 => return self.expected_value == *self.inputs.first().expect("`inputs` is length 1"),
+            0 => return None,
+            1 => return self.inputs.first().copied(), // Will always return `Some`.
             _ => (),
         }
 
-        // All of these values could fit in like... a [`u16`], so all these casts are safe.
-        let operations = NonZeroUsize::new(self.inputs.len() - 1).expect("`inputs` is length >1");
-
-        for i in 1..3_usize.pow(operations.get() as u32) {
-            let mut operations = base::to_ternary_operations(i, operations.into());
-
-            // Applies the `operations` on `self.inputs`.
-            let mut iter = self.inputs.iter();
-            let mut acculumated = *iter.next().expect("`inputs` is length >1");
-            for value in iter {
-                acculumated = operations
-                    .pop()
-                    .expect("`operations` is `inputs.len() - 1` in a loop of `inputs.len() - 1`")
-                    .apply(acculumated, *value);
-            }
-
-            if acculumated == self.expected_value {
-                return true;
-            }
+        if operations.len() != self.inputs.len() - 1 {
+            return None;
         }
 
-        false
+        // Applies the `operations` on `self.inputs`.
+        let mut iter = self.inputs.iter();
+        let mut acculumated = *iter.next().expect("`inputs` is length >1");
+
+        for value in iter {
+            acculumated = operations
+                .pop()
+                .expect("`operations` is `inputs.len() - 1` in a loop of `inputs.len() - 1`")
+                .apply(acculumated, *value);
+        }
+
+        Some(acculumated)
     }
 }
 
@@ -104,6 +103,12 @@ pub enum Operation {
 }
 
 impl Operation {
+    /// When representing [`Self`] numerically, what is the base of the counting system? Currently,
+    /// there are three members of [`Self`], so it can be represented by a ternary (base-3) value.
+    pub const fn base() -> usize {
+        3
+    }
+
     pub fn apply(&self, lhs: Integer, rhs: Integer) -> Integer {
         match self {
             Self::Add => lhs + rhs,
