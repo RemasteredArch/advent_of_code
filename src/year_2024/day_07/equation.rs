@@ -1,8 +1,6 @@
 use crate::Integer;
-use core::panic;
-use std::{fmt::Display, num::NonZeroUsize, str::FromStr};
 
-use super::base;
+use super::base::Base;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Equation {
@@ -22,30 +20,20 @@ impl Equation {
         self.expected_value
     }
 
-    pub fn inputs(&self) -> &[Integer] {
-        &self.inputs
-    }
-
     /// Tests all possible combinations of [`Operation::Add`] and [`Operation::Multiply`] on
     /// [`Self::inputs`] to see if any match [`Self::expected_value`]. If any match, return `true`,
     /// else `false`.
     pub fn is_valid_binary(&self) -> bool {
-        self.is_valid(2)
+        self.is_valid(Base::new(2).expect("2 is a valid `Base`"))
     }
 
     /// Tests all possible combinations of [`Operation`]s on [`Self::inputs`] to see if any match
     /// [`Self::expected_value`]. If any match, return `true`, else `false`.
     pub fn is_valid_ternary(&self) -> bool {
-        self.is_valid(3)
+        self.is_valid(Base::new(3).expect("3 is a valid `Base`"))
     }
 
-    fn is_valid(&self, base: usize) -> bool {
-        const MAX_BASE: usize = Operation::base();
-        assert!(
-            base <= MAX_BASE,
-            "invalid base (received {base}, expected <= {MAX_BASE})",
-        );
-
+    fn is_valid(&self, base: Base) -> bool {
         match self.inputs.len() {
             0 => return false,
             1 => return self.expected_value == *self.inputs.first().expect("`inputs` is length 1"),
@@ -54,8 +42,8 @@ impl Equation {
 
         let operations = self.inputs.len() - 1;
 
-        for i in 0..base.pow(operations as u32) {
-            let mut operations = base::to_base_operations(base, i, operations);
+        for i in 0..base.get().pow(operations as u32) {
+            let mut operations = base.int_to_operations(i, operations);
 
             // Applies the `operations` on `self.inputs`.
             let mut iter = self.inputs.iter();
@@ -76,8 +64,9 @@ impl Equation {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Operation {
+    #[default]
     Add,
     Multiply,
     Concatenate,
@@ -103,11 +92,11 @@ impl Operation {
         }
     }
 
-    pub fn from_ternary(digit: char) -> Option<Self> {
+    pub fn from_digit(digit: usize) -> Option<Self> {
         match digit {
-            '0' => Some(Self::Add),
-            '1' => Some(Self::Multiply),
-            '2' => Some(Self::Concatenate),
+            0 => Some(Self::Add),
+            1 => Some(Self::Multiply),
+            2 => Some(Self::Concatenate),
             _ => None,
         }
     }

@@ -1,12 +1,12 @@
-#![allow(unused, dead_code)]
-
 mod base;
 mod equation;
 
 use crate::Integer;
 use equation::Equation;
 
+#[allow(dead_code)]
 const INPUT: &str = include_str!("./data.txt");
+#[allow(dead_code)]
 const EXAMPLE_INPUT: &str = "190: 10 19
 3267: 81 40 27
 83: 17 5
@@ -20,20 +20,25 @@ const EXAMPLE_INPUT: &str = "190: 10 19
 pub fn part_one() -> Integer {
     let equations = parse_input(INPUT).unwrap();
 
-    equations
-        .iter()
-        .filter(|e| e.is_valid_binary())
-        .map(|e| e.expected_value())
-        .sum()
+    sum_valid(&equations, Equation::is_valid_binary)
 }
 
 pub fn part_two() -> Integer {
     let equations = parse_input(INPUT).unwrap();
 
+    sum_valid(&equations, Equation::is_valid_ternary)
+}
+
+fn sum_valid(equations: &[Equation], mut validate: impl FnMut(&Equation) -> bool) -> Integer {
     equations
         .iter()
-        .filter(|e| e.is_valid_ternary())
-        .map(|e| e.expected_value())
+        .filter_map(move |e| {
+            if !validate(e) {
+                return None;
+            }
+
+            Some(e.expected_value())
+        })
         .sum()
 }
 
