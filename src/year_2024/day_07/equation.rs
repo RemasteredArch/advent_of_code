@@ -1,5 +1,7 @@
 use crate::Integer;
-use std::{fmt::Display, num::NonZeroUsize};
+use std::{fmt::Display, num::NonZeroUsize, str::FromStr};
+
+use super::base;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Equation {
@@ -23,9 +25,10 @@ impl Equation {
         &self.inputs
     }
 
-    /// Tests all possible combinations of [`Operation`]s on [`Self::inputs`] to see if any match
-    /// [`Self::expected_value`]. If any match, return `true`, else `false`.
-    pub fn is_valid(&self) -> bool {
+    /// Tests all possible combinations of [`Operation::Add`] and [`Operation::Multiply`] on
+    /// [`Self::inputs`] to see if any match [`Self::expected_value`]. If any match, return `true`,
+    /// else `false`.
+    pub fn is_valid_binary(&self) -> bool {
         match self.inputs.len() {
             0 => return false,
             1 => return self.expected_value == *self.inputs.first().expect("`inputs` is length 1"),
@@ -39,20 +42,40 @@ impl Equation {
         // values from zero to the max value of an unsigned integer of length `operations` will hit
         // every possible combination of operators.
         for i in 0..2_usize.pow(operations.get() as u32) {
-            // Standardizes bit order: `11 => 1101 0000 0000 0000 ...`.
-            //
-            // Makes the assumption that the most significant bit is always first, regardless of
-            // byte endianness.
-            let standard = i.to_le().reverse_bits();
+            let mut operations = base::to_binary_operations(i, operations.into());
 
-            // Convert to binary string, then truncate to the relevant length, and convert the
-            // binary to [`Operation`]s.
-            let mut operations: Vec<Operation> =
-                format!("{standard:0>width$b}", width = NonZeroUsize::BITS as usize)
-                    .chars()
-                    .take(operations.get())
-                    .filter_map(|c| c.try_into().ok())
-                    .collect();
+            // Applies the `operations` on `self.inputs`.
+            let mut iter = self.inputs.iter();
+            let mut acculumated = *iter.next().expect("`inputs` is length >1");
+            for value in iter {
+                acculumated = operations
+                    .pop()
+                    .expect("`operations` is `inputs.len() - 1` in a loop of `inputs.len() - 1`")
+                    .apply(acculumated, *value);
+            }
+
+            if acculumated == self.expected_value {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Tests all possible combinations of [`Operation`]s on [`Self::inputs`] to see if any match
+    /// [`Self::expected_value`]. If any match, return `true`, else `false`.
+    pub fn is_valid_ternary(&self) -> bool {
+        match self.inputs.len() {
+            0 => return false,
+            1 => return self.expected_value == *self.inputs.first().expect("`inputs` is length 1"),
+            _ => (),
+        }
+
+        // All of these values could fit in like... a [`u16`], so all these casts are safe.
+        let operations = NonZeroUsize::new(self.inputs.len() - 1).expect("`inputs` is length >1");
+
+        for i in 1..3_usize.pow(operations.get() as u32) {
+            let mut operations = base::to_ternary_operations(i, operations.into());
 
             // Applies the `operations` on `self.inputs`.
             let mut iter = self.inputs.iter();
@@ -77,6 +100,7 @@ impl Equation {
 pub enum Operation {
     Add,
     Multiply,
+    Concatenate,
 }
 
 impl Operation {
@@ -84,48 +108,35 @@ impl Operation {
         match self {
             Self::Add => lhs + rhs,
             Self::Multiply => lhs * rhs,
+            Self::Concatenate => {
+                let mut lhs = lhs.to_string();
+                lhs.push_str(&rhs.to_string());
+                lhs.parse()
+                    .expect("concatenated integers should create an integer")
+            }
+        }
+    }
+
+    pub fn from_ternary(digit: char) -> Option<Self> {
+        match digit {
+            '0' => Some(Self::Add),
+            '1' => Some(Self::Multiply),
+            '2' => Some(Self::Concatenate),
+            _ => None,
         }
     }
 }
 
-impl From<Operation> for char {
-    fn from(value: Operation) -> Self {
-        match value {
-            Operation::Add => '+',
-            Operation::Multiply => '*',
-        }
-    }
-}
-
-impl From<Operation> for bool {
-    fn from(value: Operation) -> Self {
-        match value {
-            Operation::Add => false,
-            Operation::Multiply => true,
-        }
-    }
-}
-
-impl From<bool> for Operation {
-    fn from(value: bool) -> Self {
-        match value {
-            false => Operation::Add,
-            true => Operation::Multiply,
-        }
-    }
-}
-
-impl TryFrom<char> for Operation {
+impl FromStr for Operation {
     // I do not feel like making an error type to communicate that a character is not in the list
     // of convertible characters. Treat this like an [`Option`].
-    type Error = ();
+    type Err = ();
 
-    fn try_from(value: char) -> Result<Self, Self::Error> {
-        match value {
-            '+' => Ok(Operation::Add),
-            '0' => Ok(true.into()),
-            '*' => Ok(Operation::Multiply),
-            '1' => Ok(false.into()),
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "+" | "0" => Ok(Self::Add),
+            "*" | "1" => Ok(Self::Multiply),
+            "||" | "2" => Ok(Self::Concatenate),
             _ => Err(()),
         }
     }
@@ -133,6 +144,14 @@ impl TryFrom<char> for Operation {
 
 impl Display for Operation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Into::<char>::into(*self))
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Add => "+",
+                Self::Multiply => "*",
+                Self::Concatenate => "||",
+            }
+        )
     }
 }

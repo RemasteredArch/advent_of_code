@@ -1,5 +1,6 @@
 #![allow(unused, dead_code)]
 
+mod base;
 mod equation;
 
 use crate::Integer;
@@ -21,7 +22,17 @@ pub fn part_one() -> Integer {
 
     equations
         .iter()
-        .filter(|e| e.is_valid())
+        .filter(|e| e.is_valid_binary())
+        .map(|e| e.expected_value())
+        .sum()
+}
+
+pub fn part_two() -> Integer {
+    let equations = parse_input(INPUT).unwrap();
+
+    equations
+        .iter()
+        .filter(|e| e.is_valid_ternary())
         .map(|e| e.expected_value())
         .sum()
 }
