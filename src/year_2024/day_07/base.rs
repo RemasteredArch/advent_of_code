@@ -19,7 +19,7 @@ impl Base {
     }
 
     pub fn int_to_operations(&self, mut int: usize, length: usize) -> Vec<Operation> {
-        let mut operations = vec![];
+        let mut operations = Vec::with_capacity(length);
 
         while int > 0 {
             let remainder = int % self.base;

@@ -83,12 +83,7 @@ impl Operation {
         match self {
             Self::Add => lhs + rhs,
             Self::Multiply => lhs * rhs,
-            Self::Concatenate => {
-                let mut lhs = lhs.to_string();
-                lhs.push_str(&rhs.to_string());
-                lhs.parse()
-                    .expect("concatenated integers should create an integer")
-            }
+            Self::Concatenate => lhs * (10 as Integer).pow(rhs.ilog10() + 1) + rhs,
         }
     }
 
