@@ -40,12 +40,11 @@ impl Equation {
     }
 
     fn is_valid(&self, base: usize) -> bool {
-        if base > Operation::base() {
-            panic!(
-                "invalid base (received {base}, expected <= {})",
-                Operation::base()
-            )
-        }
+        const MAX_BASE: usize = Operation::base();
+        assert!(
+            base <= MAX_BASE,
+            "invalid base (received {base}, expected <= {MAX_BASE})",
+        );
 
         match self.inputs.len() {
             0 => return false,
@@ -58,40 +57,22 @@ impl Equation {
         for i in 0..base.pow(operations as u32) {
             let mut operations = base::to_base_operations(base, i, operations);
 
-            if self.apply(operations).expect(
-                "`operations` is `inputs.len() - 1` in a loop of `inputs.len() - 1` and is > 0",
-            ) == self.expected_value
-            {
+            // Applies the `operations` on `self.inputs`.
+            let mut iter = self.inputs.iter();
+            let mut acculumated = *iter.next().expect("`inputs` is length >1");
+            for value in iter {
+                acculumated = operations
+                    .pop()
+                    .expect("`operations` is `inputs.len() - 1` in a loop of `inputs.len() - 1`")
+                    .apply(acculumated, *value);
+            }
+
+            if acculumated == self.expected_value {
                 return true;
             }
         }
 
         false
-    }
-
-    pub fn apply(&self, mut operations: Vec<Operation>) -> Option<Integer> {
-        match self.inputs.len() {
-            0 => return None,
-            1 => return self.inputs.first().copied(), // Will always return `Some`.
-            _ => (),
-        }
-
-        if operations.len() != self.inputs.len() - 1 {
-            return None;
-        }
-
-        // Applies the `operations` on `self.inputs`.
-        let mut iter = self.inputs.iter();
-        let mut acculumated = *iter.next().expect("`inputs` is length >1");
-
-        for value in iter {
-            acculumated = operations
-                .pop()
-                .expect("`operations` is `inputs.len() - 1` in a loop of `inputs.len() - 1`")
-                .apply(acculumated, *value);
-        }
-
-        Some(acculumated)
     }
 }
 
@@ -129,34 +110,5 @@ impl Operation {
             '2' => Some(Self::Concatenate),
             _ => None,
         }
-    }
-}
-
-impl FromStr for Operation {
-    // I do not feel like making an error type to communicate that a character is not in the list
-    // of convertible characters. Treat this like an [`Option`].
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "+" | "0" => Ok(Self::Add),
-            "*" | "1" => Ok(Self::Multiply),
-            "||" | "2" => Ok(Self::Concatenate),
-            _ => Err(()),
-        }
-    }
-}
-
-impl Display for Operation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Self::Add => "+",
-                Self::Multiply => "*",
-                Self::Concatenate => "||",
-            }
-        )
     }
 }
