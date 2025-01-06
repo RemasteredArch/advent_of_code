@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    ops::Sub,
-};
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Radios {
@@ -50,17 +47,30 @@ impl Radios {
     }
 
     pub fn antinodes(&self) -> HashSet<Location> {
+        let mut locations = HashSet::new();
         for radios in self.radios.values() {
             for radio in radios {
                 for other in radios {
                     if radio == other {
                         continue;
                     }
+
+                    let mut bounds_check_and_insert = |antinode: Option<Location>| {
+                        if let Some(antinode) =
+                            antinode.filter(|a| a.is_in_bounds(self.columns, self.rows))
+                        {
+                            locations.insert(antinode);
+                        }
+                    };
+
+                    let (left, right) = radio.antinodes(other);
+                    bounds_check_and_insert(left);
+                    bounds_check_and_insert(right);
                 }
             }
         }
 
-        todo!();
+        locations
     }
 }
 
@@ -75,8 +85,22 @@ impl Location {
         Self { column, row }
     }
 
-    pub fn antinodes(&self, other: &Self) -> (Location, Location) {
-        (self - other, other - self)
+    pub fn is_in_bounds(&self, columns: usize, rows: usize) -> bool {
+        self.column() < columns && self.row() < rows
+    }
+
+    pub fn antinodes(&self, other: &Self) -> (Option<Location>, Option<Location>) {
+        (self.antinode(other), other.antinode(self))
+    }
+
+    /// Get the [`Location`] on the opposite side of `other` from `self`.
+    fn antinode(&self, other: &Self) -> Option<Self> {
+        let (rise, run) = self.rise_run(other);
+
+        let column = self.column().checked_add_signed(run)?;
+        let row = self.row().checked_add_signed(rise)?;
+
+        Some(Self { column, row })
     }
 
     pub fn rise_run(&self, other: &Self) -> (isize, isize) {
@@ -92,25 +116,6 @@ impl Location {
 
     pub fn row(&self) -> usize {
         self.row
-    }
-}
-
-impl Sub for Location {
-    type Output = Self;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        let row = rhs.row() - self.row();
-        let column = rhs.column() - self.column();
-
-        Self { row, column }
-    }
-}
-
-impl Sub for &Location {
-    type Output = Location;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        *self - *rhs
     }
 }
 
