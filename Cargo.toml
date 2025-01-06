@@ -12,3 +12,4 @@ publish = false
 readme = true
 
 [dependencies]
+paste = "1.0.15"

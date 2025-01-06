@@ -1,41 +1,32 @@
 mod year_2024;
 
+use paste::paste;
+
 type Integer = u64;
 
-// TODO: macro wizardry to make this less manual
-
-#[allow(unused_variables)]
 fn main() {
-    let mut args = std::env::args();
+    macro_rules! days {
+        [ $( $day_str:expr, $day_num:ident; )+ ] => {
+            println!("Year 2024");
 
-    // TODO: Use CLI args to automate selection of target.
-    let year = args.nth(1);
-    let day = args.nth(2);
-    let part = args.nth(3);
+            $(
+                println!(concat!("- Day ", $day_str));
+                paste! {
+                    println!("  - Part One: {}", year_2024::[<day $day_num>]::part_one());
+                    println!("  - Part Two: {}", year_2024::[<day $day_num>]::part_two())
+                }
+            );+
+        };
+    }
 
-    println!("Year 2024");
-    println!("- Day One");
-    println!("  - Part One: {}", year_2024::day_01::part_one());
-    println!("  - Part Two: {}", year_2024::day_01::part_two());
-    println!("- Day Two");
-    println!("  - Part One: {}", year_2024::day_02::part_one());
-    println!("  - Part Two: {}", year_2024::day_02::part_two());
-    println!("- Day Three");
-    println!("  - Part One: {}", year_2024::day_03::part_one());
-    println!("  - Part Two: {}", year_2024::day_03::part_two());
-    println!("- Day Four");
-    println!("  - Part One: {}", year_2024::day_04::part_one());
-    println!("  - Part Two: {}", year_2024::day_04::part_two());
-    println!("- Day Five");
-    println!("  - Part One: {}", year_2024::day_05::part_one());
-    println!("  - Part Two: {}", year_2024::day_05::part_two());
-    println!("- Day Six");
-    println!("  - Part One: {}", year_2024::day_06::part_one());
-    // println!("  - Part Two: {}", year_2024::day_06::part_two());
-    println!("- Day Seven");
-    println!("  - Part One: {}", year_2024::day_07::part_one());
-    println!("  - Part Two: {}", year_2024::day_07::part_two());
-    println!("- Day Eight");
-    println!("  - Part One: {}", year_2024::day_08::part_one());
-    println!("  - Part Two: {}", year_2024::day_08::part_two());
+    days![
+        "One", _01;
+        "Two", _02;
+        "Three", _03;
+        "Four", _04;
+        "Five", _05;
+        // "Six", _06;
+        // "Seven", _07;
+        "Eight", _08;
+    ];
 }
