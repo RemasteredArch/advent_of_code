@@ -35,4 +35,7 @@ fn main() {
     println!("- Day Seven");
     println!("  - Part One: {}", year_2024::day_07::part_one());
     println!("  - Part Two: {}", year_2024::day_07::part_two());
+    println!("- Day Eight");
+    println!("  - Part One: {}", year_2024::day_08::part_one());
+    println!("  - Part Two: {}", year_2024::day_08::part_two());
 }
