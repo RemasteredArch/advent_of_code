@@ -1,4 +1,8 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    cmp::Ordering,
+    collections::{HashMap, HashSet},
+    fmt::Display,
+};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Radios {
@@ -74,14 +78,68 @@ impl Radios {
     }
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+impl Display for Radios {
+    /// Formats [`Self`] as a grid, with locations that don't have radios represented as `'.'`.
+    /// Where two radios overlap, the displayed frequency is (probably) non-deterministic.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut radios = self
+            .radios
+            .iter()
+            .map(|(frequency, radios)| {
+                radios
+                    .iter()
+                    .map(move |radio| (*frequency, *radio))
+                    .collect::<Vec<_>>()
+            })
+            .reduce(|mut acculumated, mut next| {
+                acculumated.append(&mut next);
+                acculumated
+            })
+            .unwrap_or(vec![]);
+        radios.dedup_by_key(|(_, location)| *location);
+        // Reverse order, so the locations closest to (0, 0) are at the end of the array.
+        //
+        // Sorts by row instead of by column because it will be printed row-by-row instead of
+        // column-by-column.
+        radios.sort_unstable_by(|(_, left_location), (_, right_location)| {
+            right_location.cmp_by_row(left_location)
+        });
+
+        let mut output = String::with_capacity((self.columns + 1) * self.rows);
+
+        for row in 0..self.rows {
+            for column in 0..self.columns {
+                output.push(
+                    if radios
+                        .last()
+                        .is_some_and(|(_, location)| *location == Location::new(column, row))
+                    {
+                        let (frequency, _) = radios
+                            .pop()
+                            .expect("use of `.last()` proved the existence of an element");
+
+                        frequency.get()
+                    } else {
+                        '.'
+                    },
+                );
+            }
+
+            output.push('\n');
+        }
+
+        write!(f, "{output}")
+    }
+}
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 pub struct Location {
     column: usize,
     row: usize,
 }
 
 impl Location {
-    pub fn new(column: usize, row: usize) -> Self {
+    pub const fn new(column: usize, row: usize) -> Self {
         Self { column, row }
     }
 
@@ -117,9 +175,28 @@ impl Location {
     pub fn row(&self) -> usize {
         self.row
     }
+
+    pub fn cmp_by_column(&self, rhs: &Self) -> Ordering {
+        self.cmp(rhs)
+    }
+
+    pub fn cmp_by_row(&self, rhs: &Self) -> Ordering {
+        let row_ordering = self.row().cmp(&rhs.row());
+
+        match row_ordering {
+            Ordering::Less | Ordering::Greater => row_ordering,
+            Ordering::Equal => self.column().cmp(&rhs.column()),
+        }
+    }
 }
 
-#[derive(Debug, Hash, PartialEq, Eq)]
+impl Display for Location {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {})", self.column(), self.row())
+    }
+}
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct Frequency {
     frequency: char,
 }
@@ -135,5 +212,11 @@ impl Frequency {
 
     pub fn get(&self) -> char {
         self.frequency
+    }
+}
+
+impl Display for Frequency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.get())
     }
 }

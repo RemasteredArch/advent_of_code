@@ -29,6 +29,7 @@ const EXAMPLE_INPUT: &str = "............
 // - Antinodes can occur at the same location as another antenna
 pub fn part_one() -> Integer {
     let radios = Radios::parse(EXAMPLE_INPUT).unwrap();
+    println!("{radios}");
 
     radios.antinodes().len().try_into().unwrap()
 }
