@@ -50,6 +50,25 @@ impl Radios {
         })
     }
 
+    /// Returns a pair of [`Frequency`] and [`Location`] for every radio in [`Self`].
+    ///
+    /// The output is not sorted or deduplicated. The sorting is (probably) non-deterministic.
+    pub fn radio_pairs(&self) -> Vec<(Frequency, Location)> {
+        self.radios
+            .iter()
+            .map(|(frequency, radios)| {
+                radios
+                    .iter()
+                    .map(move |radio| (*frequency, *radio))
+                    .collect::<Vec<_>>()
+            })
+            .reduce(|mut acculumated, mut next| {
+                acculumated.append(&mut next);
+                acculumated
+            })
+            .unwrap_or(vec![])
+    }
+
     pub fn antinodes(&self) -> HashSet<Location> {
         let mut locations = HashSet::new();
         for radios in self.radios.values() {
@@ -82,20 +101,7 @@ impl Display for Radios {
     /// Formats [`Self`] as a grid, with locations that don't have radios represented as `'.'`.
     /// Where two radios overlap, the displayed frequency is (probably) non-deterministic.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut radios = self
-            .radios
-            .iter()
-            .map(|(frequency, radios)| {
-                radios
-                    .iter()
-                    .map(move |radio| (*frequency, *radio))
-                    .collect::<Vec<_>>()
-            })
-            .reduce(|mut acculumated, mut next| {
-                acculumated.append(&mut next);
-                acculumated
-            })
-            .unwrap_or(vec![]);
+        let mut radios = self.radio_pairs();
         radios.dedup_by_key(|(_, location)| *location);
         // Reverse order, so the locations closest to (0, 0) are at the end of the array.
         //
