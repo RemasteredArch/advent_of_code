@@ -50,6 +50,50 @@ impl Radios {
         })
     }
 
+    pub fn from_pairs(input: Vec<(Frequency, Location)>) -> Self {
+        let mut radios = HashMap::<Frequency, Vec<Location>>::new();
+        let mut columns = 0;
+        let mut rows = 0;
+
+        for (frequency, radio) in input.into_iter() {
+            columns = columns.max(radio.column() + 1);
+            rows = rows.max(radio.row() + 1);
+
+            match radios.get_mut(&frequency) {
+                Some(vec) => {
+                    vec.push(radio);
+                }
+                None => {
+                    radios.insert(frequency, vec![radio]);
+                }
+            };
+        }
+
+        Self {
+            radios,
+            columns,
+            rows,
+        }
+    }
+
+    pub fn from_pairs_bounded(
+        input: Vec<(Frequency, Location)>,
+        columns: usize,
+        rows: usize,
+    ) -> Option<Self> {
+        let radios = Self::from_pairs(input);
+
+        if radios.columns > columns || radios.rows > rows {
+            None
+        } else {
+            Some(Self {
+                radios: radios.radios,
+                columns,
+                rows,
+            })
+        }
+    }
+
     /// Returns a pair of [`Frequency`] and [`Location`] for every radio in [`Self`].
     ///
     /// The output is not sorted or deduplicated. The sorting is (probably) non-deterministic.
@@ -71,6 +115,7 @@ impl Radios {
 
     pub fn antinodes(&self) -> HashSet<Location> {
         let mut locations = HashSet::new();
+
         for radios in self.radios.values() {
             for radio in radios {
                 for other in radios {
@@ -161,8 +206,8 @@ impl Location {
     fn antinode(&self, other: &Self) -> Option<Self> {
         let (rise, run) = self.rise_run(other);
 
-        let column = self.column().checked_add_signed(run)?;
-        let row = self.row().checked_add_signed(rise)?;
+        let column = self.column().checked_add_signed(-run)?;
+        let row = self.row().checked_add_signed(-rise)?;
 
         Some(Self { column, row })
     }
