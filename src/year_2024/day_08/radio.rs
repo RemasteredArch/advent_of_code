@@ -113,7 +113,7 @@ impl Radios {
             .unwrap_or(vec![])
     }
 
-    pub fn antinodes(&self) -> HashSet<Location> {
+    pub fn antinode_pairs(&self) -> HashSet<Location> {
         let mut locations = HashSet::new();
 
         for radios in self.radios.values() {
@@ -131,12 +131,47 @@ impl Radios {
                         }
                     };
 
-                    let (left, right) = radio.antinodes(other);
+                    let (left, right) = radio.antinode_pair(other);
                     bounds_check_and_insert(left);
                     bounds_check_and_insert(right);
                 }
             }
         }
+
+        locations
+    }
+
+    pub fn all_antinodes(&self) -> HashSet<Location> {
+        let mut locations = HashSet::new();
+
+        for radios in self.radios.values() {
+            for radio in radios {
+                for other in radios {
+                    if radio == other {
+                        continue;
+                    }
+
+                    for antinode in radio.all_antinodes(other).iter() {
+                        if antinode.is_in_bounds(self.columns, self.rows) {
+                            locations.insert(*antinode);
+                        }
+                    }
+                }
+            }
+        }
+
+        println!(
+            "{self}\n\n{}",
+            Radios::from_pairs_bounded(
+                locations
+                    .iter()
+                    .map(|&l| (Frequency { frequency: '#' }, l))
+                    .collect(),
+                self.columns,
+                self.rows
+            )
+            .unwrap()
+        );
 
         locations
     }
@@ -198,7 +233,36 @@ impl Location {
         self.column() < columns && self.row() < rows
     }
 
-    pub fn antinodes(&self, other: &Self) -> (Option<Location>, Option<Location>) {
+    pub fn all_antinodes(&self, other: &Self) -> Vec<Self> {
+        fn antinodes_along_line(
+            output: &mut Vec<Location>,
+            mut last: Location,
+            mut second_last: Location,
+        ) {
+            while let Some(next) = second_last.antinode(&last) {
+                output.push(next);
+
+                second_last = last;
+                last = next;
+            }
+        }
+
+        let mut locations = vec![];
+
+        let Some(first) = self.antinode(other) else {
+            return locations;
+        };
+        locations.push(first);
+
+        antinodes_along_line(&mut locations, first, *other);
+        dbg!(&locations);
+        antinodes_along_line(&mut locations, *self, *other);
+        dbg!(&locations);
+
+        locations
+    }
+
+    pub fn antinode_pair(&self, other: &Self) -> (Option<Self>, Option<Self>) {
         (self.antinode(other), other.antinode(self))
     }
 

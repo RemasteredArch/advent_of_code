@@ -30,9 +30,11 @@ const EXAMPLE_INPUT: &str = "............
 pub fn part_one() -> Integer {
     let radios = Radios::parse(INPUT).unwrap();
 
-    radios.antinodes().len().try_into().unwrap()
+    radios.antinode_pairs().len().try_into().unwrap()
 }
 
 pub fn part_two() -> Integer {
-    todo!("part two")
+    let radios = Radios::parse(EXAMPLE_INPUT).unwrap();
+
+    radios.all_antinodes().len().try_into().unwrap()
 }
