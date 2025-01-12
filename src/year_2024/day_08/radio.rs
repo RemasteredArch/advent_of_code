@@ -151,27 +151,12 @@ impl Radios {
                         continue;
                     }
 
-                    for antinode in radio.all_antinodes(other).iter() {
-                        if antinode.is_in_bounds(self.columns, self.rows) {
-                            locations.insert(*antinode);
-                        }
+                    for antinode in radio.all_antinodes(other, self.columns, self.rows).iter() {
+                        locations.insert(*antinode);
                     }
                 }
             }
         }
-
-        println!(
-            "{self}\n\n{}",
-            Radios::from_pairs_bounded(
-                locations
-                    .iter()
-                    .map(|&l| (Frequency { frequency: '#' }, l))
-                    .collect(),
-                self.columns,
-                self.rows
-            )
-            .unwrap()
-        );
 
         locations
     }
@@ -233,13 +218,19 @@ impl Location {
         self.column() < columns && self.row() < rows
     }
 
-    pub fn all_antinodes(&self, other: &Self) -> Vec<Self> {
+    pub fn all_antinodes(&self, other: &Self, columns: usize, rows: usize) -> Vec<Self> {
         fn antinodes_along_line(
             output: &mut Vec<Location>,
             mut last: Location,
             mut second_last: Location,
+            columns: usize,
+            rows: usize,
         ) {
             while let Some(next) = second_last.antinode(&last) {
+                if !next.is_in_bounds(columns, rows) {
+                    break;
+                }
+
                 output.push(next);
 
                 second_last = last;
@@ -247,17 +238,18 @@ impl Location {
             }
         }
 
-        let mut locations = vec![];
+        let mut locations = vec![*self, *other];
 
         let Some(first) = self.antinode(other) else {
             return locations;
         };
+        if !first.is_in_bounds(columns, rows) {
+            return locations;
+        }
         locations.push(first);
 
-        antinodes_along_line(&mut locations, first, *other);
-        dbg!(&locations);
-        antinodes_along_line(&mut locations, *self, *other);
-        dbg!(&locations);
+        antinodes_along_line(&mut locations, first, *other, columns, rows);
+        antinodes_along_line(&mut locations, *self, *other, columns, rows);
 
         locations
     }
@@ -267,11 +259,11 @@ impl Location {
     }
 
     /// Get the [`Location`] on the opposite side of `other` from `self`.
-    fn antinode(&self, other: &Self) -> Option<Self> {
+    pub fn antinode(&self, other: &Self) -> Option<Self> {
         let (rise, run) = self.rise_run(other);
 
-        let column = self.column().checked_add_signed(-run)?;
-        let row = self.row().checked_add_signed(-rise)?;
+        let column = other.column().checked_add_signed(run)?;
+        let row = other.row().checked_add_signed(rise)?;
 
         Some(Self { column, row })
     }
@@ -289,10 +281,6 @@ impl Location {
 
     pub fn row(&self) -> usize {
         self.row
-    }
-
-    pub fn cmp_by_column(&self, rhs: &Self) -> Ordering {
-        self.cmp(rhs)
     }
 
     pub fn cmp_by_row(&self, rhs: &Self) -> Ordering {
@@ -333,5 +321,28 @@ impl Frequency {
 impl Display for Frequency {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.get())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::Location;
+
+    #[test]
+    fn test_antinode() {
+        let second_last = Location::new(0, 0);
+        let last = Location::new(2, 2);
+
+        // ```txt
+        // +-----+
+        // |1    |
+        // |  2  |
+        // |    3|
+        // +-----+
+        // ```
+        //
+        // `1.antinode(2) == 3` but `2.antinode(1)` ends up out of bounds.
+        assert_eq!(second_last.antinode(&last), Some(Location::new(4, 4)));
+        assert!(last.antinode(&second_last).is_none());
     }
 }

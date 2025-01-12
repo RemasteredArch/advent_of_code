@@ -34,7 +34,7 @@ pub fn part_one() -> Integer {
 }
 
 pub fn part_two() -> Integer {
-    let radios = Radios::parse(EXAMPLE_INPUT).unwrap();
+    let radios = Radios::parse(INPUT).unwrap();
 
     radios.all_antinodes().len().try_into().unwrap()
 }
