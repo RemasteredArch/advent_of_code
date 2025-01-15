@@ -22,8 +22,8 @@ impl Filesystem {
             .filter_map(|c| c.to_digit(10).and_then(|d| d.try_into().ok()))
         {
             blocks.push(match next {
-                Next::File { id } => Block::File { id, len },
-                Next::Empty { id: _ } => Block::Empty { len },
+                Next::File { id } => Block::File(File { id, len }),
+                Next::Empty { id: _ } => Block::Empty(Empty { len }),
             });
 
             next = match next {
@@ -39,6 +39,13 @@ impl Filesystem {
         self.blocks.iter().rev().find_map(|b| b.try_to_file())
     }
 
+    fn last_file_block_mut(&mut self) -> Option<(&mut Block, File)> {
+        self.blocks
+            .iter_mut()
+            .rev()
+            .find_map(|b| b.try_as_file_block_mut())
+    }
+
     fn push(&mut self, value: Block) {
         let Some(last) = self.blocks.last_mut() else {
             self.blocks.push(value);
@@ -48,25 +55,44 @@ impl Filesystem {
         let len = last.len() + value.len();
 
         match (*last, value) {
-            (
-                Block::File {
-                    id: last_id,
-                    len: _,
-                },
-                Block::File {
-                    id: value_id,
-                    len: _,
-                },
-            ) if last_id == value_id => *last.len_mut() = len,
-            (Block::Empty { len: _ }, Block::Empty { len: _ }) => *last.len_mut() = len,
+            (Block::File(File { id: last_id, .. }), Block::File(File { id: value_id, .. }))
+                if last_id == value_id =>
+            {
+                *last.len_mut() = len
+            }
+            (Block::Empty(_), Block::Empty(_)) => *last.len_mut() = len,
             _ => self.blocks.push(value),
         };
     }
 
-    /// Remove the last file from the filesystem, filling its place with [`Block::Empty`]. Will
+    fn fuse_empty(&mut self) {
+        todo!();
+    }
+
+    /// Remove the last `blocks` of [`File`]s, filling their places with [`Block::Empty`]. Does not
     /// join with adjacent [`Block::Empty`].
-    fn pop(&mut self) -> Option<File> {
-        todo!("implement fs popping")
+    fn pop(&mut self, blocks: usize) -> Vec<File> {
+        let mut files = vec![];
+        let mut accumulated_blocks = 0;
+
+        while accumulated_blocks < blocks {
+            let Some((last, mut as_file)) = self.last_file_block_mut() else {
+                return files;
+            };
+
+            let remaining = blocks - accumulated_blocks;
+            if remaining < last.len() {
+                *last.len_mut() -= remaining;
+                *as_file.len_mut() = remaining;
+            } else {
+                *last = Block::Empty(Empty { len: last.len() });
+            }
+
+            accumulated_blocks += as_file.len();
+            files.push(as_file);
+        }
+
+        files
     }
 
     pub fn to_compact(&self) -> Self {
@@ -74,8 +100,8 @@ impl Filesystem {
 
         for block in self.blocks.iter() {
             match block {
-                Block::File { id: _, len: _ } => blocks.push(*block),
-                Block::Empty { len } => todo!(),
+                Block::File(_) => blocks.push(*block),
+                Block::Empty(_) => todo!(),
             }
         }
 
@@ -103,46 +129,82 @@ impl Display for Filesystem {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 struct File {
     id: u8,
-    len: u8,
+    len: usize,
+}
+
+impl File {
+    pub const fn len(&self) -> usize {
+        self.len
+    }
+
+    pub const fn len_mut(&mut self) -> &mut usize {
+        &mut self.len
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 struct Empty {
-    len: u8,
+    len: usize,
+}
+
+impl Empty {
+    pub const fn len(&self) -> usize {
+        self.len
+    }
+
+    pub const fn len_mut(&mut self) -> &mut usize {
+        &mut self.len
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Block {
-    File { id: u8, len: u8 },
-    Empty { len: u8 },
+    File(File),
+    Empty(Empty),
 }
 
 impl Block {
-    pub const fn len(&self) -> u8 {
-        match self {
-            Block::File { id: _, len } => *len,
-            Block::Empty { len } => *len,
+    pub const fn len(&self) -> usize {
+        match *self {
+            Block::File(File { len, .. }) => len,
+            Block::Empty(Empty { len }) => len,
         }
     }
 
-    pub const fn len_mut(&mut self) -> &mut u8 {
+    pub const fn len_mut(&mut self) -> &mut usize {
         match self {
-            Block::File { id: _, len } => len,
-            Block::Empty { len } => len,
+            Block::File(File { len, .. }) => len,
+            Block::Empty(Empty { len }) => len,
         }
     }
 
     pub fn try_to_file(&self) -> Option<File> {
         match *self {
-            Block::File { id, len } => Some(File { id, len }),
-            Block::Empty { len: _ } => None,
+            Block::File(file) => Some(file),
+            _ => None,
+        }
+    }
+
+    pub fn try_as_file_mut(&mut self) -> Option<&mut File> {
+        match self {
+            Block::File(file) => Some(file),
+            _ => None,
+        }
+    }
+
+    /// Returns a [`Self`] that is guaranteed to be an instance of [`File`], exactly as copied in
+    /// the tuple.
+    pub fn try_as_file_block_mut(&mut self) -> Option<(&mut Self, File)> {
+        match *self {
+            Block::File(file) => Some((self, file)),
+            _ => None,
         }
     }
 
     pub fn try_to_empty(&self) -> Option<Empty> {
         match *self {
-            Block::File { id: _, len: _ } => None,
-            Block::Empty { len } => Some(Empty { len }),
+            Block::Empty(empty) => Some(empty),
+            _ => None,
         }
     }
 }
@@ -153,8 +215,8 @@ impl Display for Block {
             f,
             "{}",
             match self {
-                Block::File { id, len } => id.to_string().repeat(*len as usize),
-                Block::Empty { len } => ".".repeat(*len as usize),
+                Block::File(File { id, len }) => id.to_string().repeat(*len),
+                Block::Empty(Empty { len }) => ".".repeat(*len),
             }
         )
     }
@@ -162,13 +224,21 @@ impl Display for Block {
 
 #[cfg(test)]
 mod test {
-    use super::{super::EXAMPLE_INPUT, Filesystem};
+    use super::{super::EXAMPLE_INPUT, File, Filesystem};
 
     #[test]
     fn parse_and_display() {
         assert_eq!(
             "00...111...2...333.44.5555.6666.777.888899",
             Filesystem::parse(EXAMPLE_INPUT).to_string()
+        );
+    }
+
+    #[test]
+    fn parse_and_pop() {
+        assert_eq!(
+            vec![File { id: 9, len: 2 }, File { id: 8, len: 3 }],
+            Filesystem::parse(EXAMPLE_INPUT).pop(5),
         );
     }
 }

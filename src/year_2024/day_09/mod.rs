@@ -11,7 +11,7 @@ pub fn part_one() -> Integer {
     let fs = Filesystem::parse(EXAMPLE_INPUT);
     println!("{fs}");
 
-    todo!("finish part one")
+    fs.to_compact().checksum()
 }
 
 pub fn part_two() -> Integer {
