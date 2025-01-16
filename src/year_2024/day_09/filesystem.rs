@@ -39,11 +39,11 @@ impl Filesystem {
         self.blocks.iter().rev().find_map(|b| b.try_to_file())
     }
 
-    fn last_file_block_mut(&mut self) -> Option<(&mut Block, File)> {
-        self.blocks
-            .iter_mut()
-            .rev()
-            .find_map(|b| b.try_as_file_block_mut())
+    fn last_file_mut(&mut self) -> Option<(&mut Block, File)> {
+        self.blocks.iter_mut().rev().find_map(|block| match *block {
+            Block::File(file) => Some((block, file)),
+            _ => None,
+        })
     }
 
     fn push(&mut self, value: Block) {
@@ -106,7 +106,7 @@ impl Filesystem {
         let mut accumulated_blocks = 0;
 
         while accumulated_blocks < blocks {
-            let Some((last, mut as_file)) = self.last_file_block_mut() else {
+            let Some((last, mut as_file)) = self.last_file_mut() else {
                 return files;
             };
 
@@ -257,15 +257,6 @@ impl Block {
     pub fn try_as_file_mut(&mut self) -> Option<&mut File> {
         match self {
             Block::File(file) => Some(file),
-            _ => None,
-        }
-    }
-
-    /// Returns a [`Self`] that is guaranteed to be an instance of [`File`], exactly as copied in
-    /// the tuple.
-    pub fn try_as_file_block_mut(&mut self) -> Option<(&mut Self, File)> {
-        match *self {
-            Block::File(file) => Some((self, file)),
             _ => None,
         }
     }
