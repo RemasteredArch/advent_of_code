@@ -178,7 +178,28 @@ impl Filesystem {
     }
 
     pub fn checksum(&self) -> Integer {
-        todo!("implement checksumming")
+        // Tracks the actual block-level index in the filesystem.
+        let mut block_index = 0;
+
+        self.blocks
+            .iter()
+            // For every file,
+            .filter_map(|b| {
+                // For every block that file spans,
+                b.try_to_file().map(|b| {
+                    { 0..b.len() }
+                        // Sum the `id` times the block-level index.
+                        .map(|_| {
+                            let result = block_index * b.id as usize;
+                            block_index += 1;
+                            result
+                        })
+                        .sum::<usize>()
+                })
+            })
+            .sum::<usize>()
+            .try_into()
+            .unwrap()
     }
 }
 
@@ -339,6 +360,8 @@ mod test {
             ],
         };
 
+        dbg!(&fs);
+
         assert_eq!(
             Filesystem {
                 blocks: vec![
@@ -349,5 +372,30 @@ mod test {
             },
             fs.to_compact()
         );
+    }
+
+    #[test]
+    fn checksum() {
+        let fs = Filesystem {
+            // `0099811188827773336446555566..............`
+            blocks: vec![
+                Block::File(File { id: 0, len: 2 }),
+                Block::File(File { id: 9, len: 2 }),
+                Block::File(File { id: 8, len: 1 }),
+                Block::File(File { id: 1, len: 3 }),
+                Block::File(File { id: 8, len: 3 }),
+                Block::File(File { id: 2, len: 1 }),
+                Block::File(File { id: 7, len: 3 }),
+                Block::File(File { id: 3, len: 3 }),
+                Block::File(File { id: 6, len: 1 }),
+                Block::File(File { id: 4, len: 2 }),
+                Block::File(File { id: 6, len: 1 }),
+                Block::File(File { id: 5, len: 4 }),
+                Block::File(File { id: 6, len: 2 }),
+                Block::Empty(Empty { len: 14 }),
+            ],
+        };
+
+        assert_eq!(1928, fs.checksum());
     }
 }
