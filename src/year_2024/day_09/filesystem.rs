@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, sync::Mutex};
 
 use crate::Integer;
 
@@ -65,8 +65,38 @@ impl Filesystem {
         };
     }
 
+    fn append(&mut self, values: Vec<Block>) {
+        for block in values {
+            self.push(block);
+        }
+    }
+
+    // TODO: Reimplement to fuse contiguous files.
     fn fuse_empty(&mut self) {
-        todo!();
+        let mut i = 0;
+
+        while let Some(block) = self.blocks.get(i) {
+            if !matches!(block, Block::Empty(_)) {
+                i += 1;
+                continue;
+            }
+
+            while let Some(next) = self.blocks.get(i + 1) {
+                if !matches!(next, Block::Empty(_)) {
+                    break;
+                }
+
+                *self
+                    .blocks
+                    .get_mut(i)
+                    .expect("loop condition proves existence")
+                    .len_mut() += next.len();
+
+                self.blocks.remove(i + 1);
+            }
+
+            i += 1;
+        }
     }
 
     /// Remove the last `blocks` of [`File`]s, filling their places with [`Block::Empty`]. Does not
@@ -96,16 +126,55 @@ impl Filesystem {
     }
 
     pub fn to_compact(&self) -> Self {
-        let mut blocks = Self::default();
+        struct FsIter {
+            fs: Mutex<Filesystem>,
+            iter_index: usize,
+        }
 
-        for block in self.blocks.iter() {
-            match block {
-                Block::File(_) => blocks.push(*block),
-                Block::Empty(_) => todo!(),
+        impl FsIter {
+            pub fn next(&mut self) -> Option<Block> {
+                let result = self.fs.lock().ok()?.blocks.get(self.iter_index).copied();
+                self.iter_index += 1;
+                result
+            }
+
+            pub fn fs_mut(&self) -> std::sync::MutexGuard<Filesystem> {
+                self.fs.lock().unwrap()
             }
         }
 
-        todo!("finish compaction")
+        let mut blocks = Self::default();
+
+        let fs = self.clone();
+        let mut fs_iter = FsIter {
+            fs: Mutex::new(fs),
+            iter_index: 0,
+        };
+
+        while let Some(block) = fs_iter.next() {
+            match block {
+                Block::File(_) => blocks.push(block),
+                Block::Empty(mut empty) => {
+                    let files: Vec<Block> = fs_iter
+                        .fs_mut()
+                        .pop(empty.len())
+                        .iter()
+                        .map(|&f| Block::File(f))
+                        .collect();
+
+                    let len: usize = files.iter().map(|f| f.len()).sum();
+
+                    blocks.append(files);
+
+                    if len < empty.len() {
+                        *empty.len_mut() -= len;
+                        blocks.push(Block::Empty(empty));
+                    }
+                }
+            }
+        }
+
+        blocks
     }
 
     pub fn checksum(&self) -> Integer {
@@ -224,7 +293,7 @@ impl Display for Block {
 
 #[cfg(test)]
 mod test {
-    use super::{super::EXAMPLE_INPUT, File, Filesystem};
+    use super::{super::EXAMPLE_INPUT, Block, Empty, File, Filesystem};
 
     #[test]
     fn parse_and_display() {
@@ -239,6 +308,55 @@ mod test {
         assert_eq!(
             vec![File { id: 9, len: 2 }, File { id: 8, len: 3 }],
             Filesystem::parse(EXAMPLE_INPUT).pop(5),
+        );
+    }
+
+    #[test]
+    fn fuse_empty() {
+        let mut fs = Filesystem {
+            blocks: vec![
+                Block::File(File { id: 0, len: 2 }),
+                Block::Empty(Empty { len: 2 }),
+                Block::Empty(Empty { len: 1 }),
+                Block::File(File { id: 1, len: 3 }),
+                Block::Empty(Empty { len: 2 }),
+            ],
+        };
+        fs.fuse_empty();
+
+        assert_eq!(
+            Filesystem {
+                blocks: vec![
+                    Block::File(File { id: 0, len: 2 }),
+                    Block::Empty(Empty { len: 3 }),
+                    Block::File(File { id: 1, len: 3 }),
+                    Block::Empty(Empty { len: 2 }),
+                ]
+            },
+            fs
+        );
+    }
+
+    #[test]
+    fn to_compact() {
+        let fs = Filesystem {
+            blocks: vec![
+                Block::File(File { id: 0, len: 2 }),
+                Block::Empty(Empty { len: 4 }),
+                Block::File(File { id: 0, len: 3 }),
+                Block::Empty(Empty { len: 2 }),
+            ],
+        };
+
+        assert_eq!(
+            Filesystem {
+                blocks: vec![
+                    Block::File(File { id: 0, len: 5 }),
+                    Block::Empty(Empty { len: 1 }),
+                    Block::Empty(Empty { len: 2 }),
+                ]
+            },
+            fs.to_compact()
         );
     }
 }
