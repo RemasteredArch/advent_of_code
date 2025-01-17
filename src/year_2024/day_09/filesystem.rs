@@ -4,7 +4,7 @@ use crate::Integer;
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Default)]
 pub struct Filesystem {
-    blocks: Vec<Block>,
+    spans: Vec<Span>,
 }
 
 impl Filesystem {
@@ -14,16 +14,16 @@ impl Filesystem {
             Empty { id: u8 },
         }
 
-        let mut blocks = vec![];
+        let mut spans = vec![];
 
         let mut next = Next::File { id: 0 };
         for len in input
             .chars()
             .filter_map(|c| c.to_digit(10).and_then(|d| d.try_into().ok()))
         {
-            blocks.push(match next {
-                Next::File { id } => Block::File(File { id, len }),
-                Next::Empty { id: _ } => Block::Empty(Empty { len }),
+            spans.push(match next {
+                Next::File { id } => Span::File(File { id, len }),
+                Next::Empty { id: _ } => Span::Empty(Empty { len }),
             });
 
             next = match next {
@@ -32,42 +32,42 @@ impl Filesystem {
             }
         }
 
-        Self { blocks }
+        Self { spans }
     }
 
     fn last_file(&self) -> Option<File> {
-        self.blocks.iter().rev().find_map(|b| b.try_to_file())
+        self.spans.iter().rev().find_map(|s| s.try_to_file())
     }
 
-    fn last_file_mut(&mut self) -> Option<(&mut Block, File)> {
-        self.blocks.iter_mut().rev().find_map(|block| match *block {
-            Block::File(file) => Some((block, file)),
+    fn last_file_mut(&mut self) -> Option<(&mut Span, File)> {
+        self.spans.iter_mut().rev().find_map(|span| match *span {
+            Span::File(file) => Some((span, file)),
             _ => None,
         })
     }
 
-    fn push(&mut self, value: Block) {
-        let Some(last) = self.blocks.last_mut() else {
-            self.blocks.push(value);
+    fn push(&mut self, value: Span) {
+        let Some(last) = self.spans.last_mut() else {
+            self.spans.push(value);
             return;
         };
 
         let len = last.len() + value.len();
 
         match (*last, value) {
-            (Block::File(File { id: last_id, .. }), Block::File(File { id: value_id, .. }))
+            (Span::File(File { id: last_id, .. }), Span::File(File { id: value_id, .. }))
                 if last_id == value_id =>
             {
                 *last.len_mut() = len
             }
-            (Block::Empty(_), Block::Empty(_)) => *last.len_mut() = len,
-            _ => self.blocks.push(value),
+            (Span::Empty(_), Span::Empty(_)) => *last.len_mut() = len,
+            _ => self.spans.push(value),
         };
     }
 
-    fn append(&mut self, values: Vec<Block>) {
-        for block in values {
-            self.push(block);
+    fn append(&mut self, spans: Vec<Span>) {
+        for span in spans {
+            self.push(span);
         }
     }
 
@@ -75,32 +75,32 @@ impl Filesystem {
     fn fuse_empty(&mut self) {
         let mut i = 0;
 
-        while let Some(block) = self.blocks.get(i) {
-            if !matches!(block, Block::Empty(_)) {
+        while let Some(span) = self.spans.get(i) {
+            if !matches!(span, Span::Empty(_)) {
                 i += 1;
                 continue;
             }
 
-            while let Some(next) = self.blocks.get(i + 1) {
-                if !matches!(next, Block::Empty(_)) {
+            while let Some(next) = self.spans.get(i + 1) {
+                if !matches!(next, Span::Empty(_)) {
                     break;
                 }
 
                 *self
-                    .blocks
+                    .spans
                     .get_mut(i)
                     .expect("loop condition proves existence")
                     .len_mut() += next.len();
 
-                self.blocks.remove(i + 1);
+                self.spans.remove(i + 1);
             }
 
             i += 1;
         }
     }
 
-    /// Remove the last `blocks` of [`File`]s, filling their places with [`Block::Empty`]. Does not
-    /// join with adjacent [`Block::Empty`].
+    /// Remove the last `blocks` of [`File`]s, filling their places with [`Span::Empty`]. Does not
+    /// join with adjacent [`Span::Empty`].
     fn pop(&mut self, blocks: usize) -> Vec<File> {
         let mut files = vec![];
         let mut accumulated_blocks = 0;
@@ -115,7 +115,7 @@ impl Filesystem {
                 *last.len_mut() -= remaining;
                 *as_file.len_mut() = remaining;
             } else {
-                *last = Block::Empty(Empty { len: last.len() });
+                *last = Span::Empty(Empty { len: last.len() });
             }
 
             accumulated_blocks += as_file.len();
@@ -132,8 +132,8 @@ impl Filesystem {
         }
 
         impl FsIter {
-            pub fn next(&mut self) -> Option<Block> {
-                let result = self.fs.lock().ok()?.blocks.get(self.iter_index).copied();
+            pub fn next(&mut self) -> Option<Span> {
+                let result = self.fs.lock().ok()?.spans.get(self.iter_index).copied();
                 self.iter_index += 1;
                 result
             }
@@ -143,7 +143,7 @@ impl Filesystem {
             }
         }
 
-        let mut blocks = Self::default();
+        let mut spans = Self::default();
 
         let fs = self.clone();
         let mut fs_iter = FsIter {
@@ -151,46 +151,46 @@ impl Filesystem {
             iter_index: 0,
         };
 
-        while let Some(block) = fs_iter.next() {
-            match block {
-                Block::File(_) => blocks.push(block),
-                Block::Empty(mut empty) => {
-                    let files: Vec<Block> = fs_iter
+        while let Some(span) = fs_iter.next() {
+            match span {
+                Span::File(_) => spans.push(span),
+                Span::Empty(mut empty) => {
+                    let files: Vec<Span> = fs_iter
                         .fs_mut()
                         .pop(empty.len())
                         .iter()
-                        .map(|&f| Block::File(f))
+                        .map(|&f| Span::File(f))
                         .collect();
 
                     let len: usize = files.iter().map(|f| f.len()).sum();
 
-                    blocks.append(files);
+                    spans.append(files);
 
                     if len < empty.len() {
                         *empty.len_mut() -= len;
-                        blocks.push(Block::Empty(empty));
+                        spans.push(Span::Empty(empty));
                     }
                 }
             }
         }
 
-        blocks
+        spans
     }
 
     pub fn checksum(&self) -> Integer {
         // Tracks the actual block-level index in the filesystem.
         let mut block_index = 0;
 
-        self.blocks
+        self.spans
             .iter()
             // For every file,
-            .filter_map(|b| {
+            .filter_map(|s| {
                 // For every block that file spans,
-                b.try_to_file().map(|b| {
-                    { 0..b.len() }
+                s.try_to_file().map(|s| {
+                    { 0..s.len() }
                         // Sum the `id` times the block-level index.
                         .map(|_| {
-                            let result = block_index * b.id as usize;
+                            let result = block_index * s.id as usize;
                             block_index += 1;
                             result
                         })
@@ -208,7 +208,7 @@ impl Display for Filesystem {
         write!(
             f,
             "{}",
-            self.blocks
+            self.spans
                 .iter()
                 .map(ToString::to_string)
                 .collect::<String>()
@@ -217,7 +217,7 @@ impl Display for Filesystem {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-struct File {
+pub struct File {
     id: u8,
     len: usize,
 }
@@ -233,7 +233,7 @@ impl File {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-struct Empty {
+pub struct Empty {
     len: usize,
 }
 
@@ -248,56 +248,56 @@ impl Empty {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum Block {
+pub enum Span {
     File(File),
     Empty(Empty),
 }
 
-impl Block {
+impl Span {
     pub const fn len(&self) -> usize {
         match *self {
-            Block::File(File { len, .. }) => len,
-            Block::Empty(Empty { len }) => len,
+            Span::File(File { len, .. }) => len,
+            Span::Empty(Empty { len }) => len,
         }
     }
 
     pub const fn len_mut(&mut self) -> &mut usize {
         match self {
-            Block::File(File { len, .. }) => len,
-            Block::Empty(Empty { len }) => len,
+            Span::File(File { len, .. }) => len,
+            Span::Empty(Empty { len }) => len,
         }
     }
 
     pub fn try_to_file(&self) -> Option<File> {
         match *self {
-            Block::File(file) => Some(file),
+            Span::File(file) => Some(file),
             _ => None,
         }
     }
 
     pub fn try_as_file_mut(&mut self) -> Option<&mut File> {
         match self {
-            Block::File(file) => Some(file),
+            Span::File(file) => Some(file),
             _ => None,
         }
     }
 
     pub fn try_to_empty(&self) -> Option<Empty> {
         match *self {
-            Block::Empty(empty) => Some(empty),
+            Span::Empty(empty) => Some(empty),
             _ => None,
         }
     }
 }
 
-impl Display for Block {
+impl Display for Span {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{}",
             match self {
-                Block::File(File { id, len }) => id.to_string().repeat(*len),
-                Block::Empty(Empty { len }) => ".".repeat(*len),
+                Span::File(File { id, len }) => id.to_string().repeat(*len),
+                Span::Empty(Empty { len }) => ".".repeat(*len),
             }
         )
     }
@@ -305,7 +305,7 @@ impl Display for Block {
 
 #[cfg(test)]
 mod test {
-    use super::{super::EXAMPLE_INPUT, Block, Empty, File, Filesystem};
+    use super::{super::EXAMPLE_INPUT, Empty, File, Filesystem, Span};
 
     #[test]
     fn parse_and_display() {
@@ -326,23 +326,23 @@ mod test {
     #[test]
     fn fuse_empty() {
         let mut fs = Filesystem {
-            blocks: vec![
-                Block::File(File { id: 0, len: 2 }),
-                Block::Empty(Empty { len: 2 }),
-                Block::Empty(Empty { len: 1 }),
-                Block::File(File { id: 1, len: 3 }),
-                Block::Empty(Empty { len: 2 }),
+            spans: vec![
+                Span::File(File { id: 0, len: 2 }),
+                Span::Empty(Empty { len: 2 }),
+                Span::Empty(Empty { len: 1 }),
+                Span::File(File { id: 1, len: 3 }),
+                Span::Empty(Empty { len: 2 }),
             ],
         };
         fs.fuse_empty();
 
         assert_eq!(
             Filesystem {
-                blocks: vec![
-                    Block::File(File { id: 0, len: 2 }),
-                    Block::Empty(Empty { len: 3 }),
-                    Block::File(File { id: 1, len: 3 }),
-                    Block::Empty(Empty { len: 2 }),
+                spans: vec![
+                    Span::File(File { id: 0, len: 2 }),
+                    Span::Empty(Empty { len: 3 }),
+                    Span::File(File { id: 1, len: 3 }),
+                    Span::Empty(Empty { len: 2 }),
                 ]
             },
             fs
@@ -352,11 +352,11 @@ mod test {
     #[test]
     fn to_compact() {
         let fs = Filesystem {
-            blocks: vec![
-                Block::File(File { id: 0, len: 2 }),
-                Block::Empty(Empty { len: 4 }),
-                Block::File(File { id: 0, len: 3 }),
-                Block::Empty(Empty { len: 2 }),
+            spans: vec![
+                Span::File(File { id: 0, len: 2 }),
+                Span::Empty(Empty { len: 4 }),
+                Span::File(File { id: 0, len: 3 }),
+                Span::Empty(Empty { len: 2 }),
             ],
         };
 
@@ -364,10 +364,10 @@ mod test {
 
         assert_eq!(
             Filesystem {
-                blocks: vec![
-                    Block::File(File { id: 0, len: 5 }),
-                    Block::Empty(Empty { len: 1 }),
-                    Block::Empty(Empty { len: 2 }),
+                spans: vec![
+                    Span::File(File { id: 0, len: 5 }),
+                    Span::Empty(Empty { len: 1 }),
+                    Span::Empty(Empty { len: 2 }),
                 ]
             },
             fs.to_compact()
@@ -378,21 +378,21 @@ mod test {
     fn checksum() {
         let fs = Filesystem {
             // `0099811188827773336446555566..............`
-            blocks: vec![
-                Block::File(File { id: 0, len: 2 }),
-                Block::File(File { id: 9, len: 2 }),
-                Block::File(File { id: 8, len: 1 }),
-                Block::File(File { id: 1, len: 3 }),
-                Block::File(File { id: 8, len: 3 }),
-                Block::File(File { id: 2, len: 1 }),
-                Block::File(File { id: 7, len: 3 }),
-                Block::File(File { id: 3, len: 3 }),
-                Block::File(File { id: 6, len: 1 }),
-                Block::File(File { id: 4, len: 2 }),
-                Block::File(File { id: 6, len: 1 }),
-                Block::File(File { id: 5, len: 4 }),
-                Block::File(File { id: 6, len: 2 }),
-                Block::Empty(Empty { len: 14 }),
+            spans: vec![
+                Span::File(File { id: 0, len: 2 }),
+                Span::File(File { id: 9, len: 2 }),
+                Span::File(File { id: 8, len: 1 }),
+                Span::File(File { id: 1, len: 3 }),
+                Span::File(File { id: 8, len: 3 }),
+                Span::File(File { id: 2, len: 1 }),
+                Span::File(File { id: 7, len: 3 }),
+                Span::File(File { id: 3, len: 3 }),
+                Span::File(File { id: 6, len: 1 }),
+                Span::File(File { id: 4, len: 2 }),
+                Span::File(File { id: 6, len: 1 }),
+                Span::File(File { id: 5, len: 4 }),
+                Span::File(File { id: 6, len: 2 }),
+                Span::Empty(Empty { len: 14 }),
             ],
         };
 
