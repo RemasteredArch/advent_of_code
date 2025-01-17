@@ -1,3 +1,5 @@
+#![warn(clippy::nursery, clippy::pedantic)]
+
 mod year_2024;
 
 use paste::paste;
