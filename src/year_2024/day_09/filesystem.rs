@@ -23,10 +23,12 @@ impl Filesystem {
             .chars()
             .filter_map(|c| c.to_digit(10).and_then(|d| d.try_into().ok()))
         {
-            spans.push(match next {
-                Next::File { id } => Span::File(File { id, len }),
-                Next::Empty { id: _ } => Span::Empty(Empty { len }),
-            });
+            if len != 0 {
+                spans.push(match next {
+                    Next::File { id } => Span::File(File { id, len }),
+                    Next::Empty { id: _ } => Span::Empty(Empty { len }),
+                });
+            }
 
             next = match next {
                 Next::File { id } => Next::Empty { id: id + 1 },
@@ -119,6 +121,8 @@ impl Filesystem {
 
     /// Remove the last `blocks` of [`File`]s, filling their places with [`Span::Empty`]. Does not
     /// join with adjacent [`Span::Empty`].
+    ///
+    /// Returns the values in reverse order.
     fn pop(&mut self, blocks: usize) -> Vec<File> {
         let mut files = vec![];
         let mut accumulated_blocks = 0;
@@ -324,18 +328,30 @@ mod test {
     use super::{super::EXAMPLE_INPUT, Empty, File, Filesystem, Span};
 
     #[test]
-    fn parse_and_display() {
-        assert_eq!(
-            "00...111...2...333.44.5555.6666.777.888899",
-            Filesystem::parse(EXAMPLE_INPUT).to_string()
-        );
+    fn parse_display_and_deserialize() {
+        let expected = "00...111...2...333.44.5555.6666.777.888899";
+        let parsed = Filesystem::parse(EXAMPLE_INPUT);
+
+        assert_eq!(expected, parsed.to_string());
+        assert_eq!(parsed, Filesystem::deserialize(expected));
     }
 
     #[test]
-    fn parse_and_pop() {
+    fn pop() {
+        let mut fs = Filesystem::deserialize("00...111...2...333.44.5555.6666.777.888899");
+
         assert_eq!(
             vec![File { id: 9, len: 2 }, File { id: 8, len: 3 }],
-            Filesystem::parse(EXAMPLE_INPUT).pop(5),
+            fs.clone().pop(5),
+        );
+
+        assert_eq!(
+            vec![
+                File { id: 9, len: 2 },
+                File { id: 8, len: 4 },
+                File { id: 7, len: 3 },
+            ],
+            fs.pop(9),
         );
     }
 
