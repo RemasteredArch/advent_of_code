@@ -9,6 +9,7 @@ pub struct Filesystem {
 
 #[expect(unused, reason = "in-progress")]
 impl Filesystem {
+    /// Parse from the official format from Advent of Code.
     pub fn parse(input: &str) -> Self {
         enum Next {
             File { id: u8 },
@@ -36,6 +37,26 @@ impl Filesystem {
         Self { spans }
     }
 
+    /// Parse from the [`Display`] format of [`Self`].
+    pub fn deserialize(input: &str) -> Self {
+        let mut fs = Self::default();
+
+        for char in input.chars() {
+            let span = match char
+                .to_digit(10)
+                .and_then(|c| TryInto::<u8>::try_into(c).ok())
+            {
+                Some(id) => Span::File(File { id, len: 1 }),
+                None if char == '.' => Span::Empty(Empty { len: 1 }),
+                None => continue,
+            };
+
+            fs.push(span);
+        }
+
+        fs
+    }
+
     fn last_file(&self) -> Option<File> {
         self.spans.iter().rev().find_map(Span::try_to_file)
     }
@@ -53,15 +74,11 @@ impl Filesystem {
             return;
         };
 
-        let len = last.len() + value.len();
-
         match (*last, value) {
-            (Span::File(File { id: last_id, .. }), Span::File(File { id: value_id, .. }))
-                if last_id == value_id =>
-            {
-                *last.len_mut() = len;
+            (Span::File(last_file), Span::File(value_file)) if last_file.id == value_file.id => {
+                *last.len_mut() += value.len();
             }
-            (Span::Empty(_), Span::Empty(_)) => *last.len_mut() = len,
+            (Span::Empty(_), Span::Empty(_)) => *last.len_mut() += value.len(),
             _ => self.spans.push(value),
         };
     }
@@ -349,6 +366,83 @@ mod test {
     }
 
     #[test]
+    fn push() {
+        let mut fs = Filesystem {
+            spans: vec![
+                Span::File(File { id: 0, len: 2 }),
+                Span::Empty(Empty { len: 4 }),
+            ],
+        };
+        fs.push(Span::Empty(Empty { len: 2 }));
+
+        assert_eq!(
+            Filesystem {
+                spans: vec![
+                    Span::File(File { id: 0, len: 2 }),
+                    Span::Empty(Empty { len: 6 }),
+                ],
+            },
+            fs,
+        );
+
+        let mut fs = Filesystem {
+            spans: vec![
+                Span::File(File { id: 0, len: 2 }),
+                Span::Empty(Empty { len: 4 }),
+            ],
+        };
+        fs.push(Span::File(File { id: 0, len: 2 }));
+
+        assert_eq!(
+            Filesystem {
+                spans: vec![
+                    Span::File(File { id: 0, len: 2 }),
+                    Span::Empty(Empty { len: 4 }),
+                    Span::File(File { id: 0, len: 2 }),
+                ],
+            },
+            fs,
+        );
+
+        let mut fs = Filesystem {
+            spans: vec![
+                Span::Empty(Empty { len: 4 }),
+                Span::File(File { id: 0, len: 2 }),
+            ],
+        };
+        fs.push(Span::File(File { id: 0, len: 2 }));
+
+        assert_eq!(
+            Filesystem {
+                spans: vec![
+                    Span::Empty(Empty { len: 4 }),
+                    Span::File(File { id: 0, len: 4 }),
+                ],
+            },
+            fs,
+        );
+
+        let mut fs = Filesystem {
+            spans: vec![
+                Span::Empty(Empty { len: 4 }),
+                Span::File(File { id: 0, len: 2 }),
+            ],
+        };
+        fs.push(Span::File(File { id: 1, len: 2 }));
+
+        assert_eq!(
+            Filesystem {
+                spans: vec![
+                    Span::Empty(Empty { len: 4 }),
+                    Span::File(File { id: 0, len: 2 }),
+                    Span::File(File { id: 1, len: 2 }),
+                ],
+            },
+            fs,
+        );
+    }
+
+    #[test]
     fn to_compact() {
         let fs = Filesystem {
             spans: vec![
@@ -358,18 +452,43 @@ mod test {
                 Span::Empty(Empty { len: 2 }),
             ],
         };
+        let compact = fs.to_compact();
 
-        dbg!(&fs);
+        let expected = Filesystem {
+            spans: vec![
+                Span::File(File { id: 0, len: 5 }),
+                Span::Empty(Empty { len: 1 }),
+                Span::Empty(Empty { len: 5 }),
+            ],
+        };
 
+        println!("{fs}\n{compact}\n{expected}");
+
+        assert_eq!(expected, compact);
+    }
+
+    #[test]
+    fn deserialize() {
         assert_eq!(
             Filesystem {
                 spans: vec![
-                    Span::File(File { id: 0, len: 5 }),
-                    Span::Empty(Empty { len: 1 }),
-                    Span::Empty(Empty { len: 2 }),
-                ]
+                    Span::File(File { id: 0, len: 2 }),
+                    Span::File(File { id: 9, len: 2 }),
+                    Span::File(File { id: 8, len: 1 }),
+                    Span::File(File { id: 1, len: 3 }),
+                    Span::File(File { id: 8, len: 3 }),
+                    Span::File(File { id: 2, len: 1 }),
+                    Span::File(File { id: 7, len: 3 }),
+                    Span::File(File { id: 3, len: 3 }),
+                    Span::File(File { id: 6, len: 1 }),
+                    Span::File(File { id: 4, len: 2 }),
+                    Span::File(File { id: 6, len: 1 }),
+                    Span::File(File { id: 5, len: 4 }),
+                    Span::File(File { id: 6, len: 2 }),
+                    Span::Empty(Empty { len: 14 }),
+                ],
             },
-            fs.to_compact()
+            Filesystem::deserialize("0099811188827773336446555566.............."),
         );
     }
 
