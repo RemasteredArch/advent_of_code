@@ -12,8 +12,8 @@ impl Filesystem {
     /// Parse from the official format from Advent of Code.
     pub fn parse(input: &str) -> Self {
         enum Next {
-            File { id: u8 },
-            Empty { id: u8 },
+            File { id: usize },
+            Empty { id: usize },
         }
 
         let mut spans = vec![];
@@ -46,7 +46,7 @@ impl Filesystem {
         for char in input.chars() {
             let span = match char
                 .to_digit(10)
-                .and_then(|c| TryInto::<u8>::try_into(c).ok())
+                .and_then(|c| TryInto::<usize>::try_into(c).ok())
             {
                 Some(id) => Span::File(File { id, len: 1 }),
                 None if char == '.' => Span::Empty(Empty { len: 1 }),
@@ -150,14 +150,20 @@ impl Filesystem {
     pub fn to_compact(&self) -> Self {
         struct FsIter {
             fs: Mutex<Filesystem>,
-            iter_index: usize,
         }
 
         impl FsIter {
-            pub fn next(&mut self) -> Option<Span> {
-                let result = self.fs.lock().ok()?.spans.get(self.iter_index).copied();
-                self.iter_index += 1;
-                result
+            pub fn next(&self) -> Option<Span> {
+                let spans = &mut self.fs.lock().ok()?.spans;
+
+                if spans.is_empty() {
+                    return None;
+                }
+
+                // Having to use `remove` is grossly `O(n)`, but the only way to make sure that
+                // `pop` didn't go past what `next` had already passed would have been to
+                // re-implement `pop`.
+                Some(spans.remove(0))
             }
 
             pub fn fs_mut(&self) -> std::sync::MutexGuard<Filesystem> {
@@ -168,10 +174,7 @@ impl Filesystem {
         let mut spans = Self::default();
 
         let fs = self.clone();
-        let mut fs_iter = FsIter {
-            fs: Mutex::new(fs),
-            iter_index: 0,
-        };
+        let mut fs_iter = FsIter { fs: Mutex::new(fs) };
 
         while let Some(span) = fs_iter.next() {
             match span {
@@ -212,7 +215,7 @@ impl Filesystem {
                     { 0..s.len() }
                         // Sum the `id` times the block-level index.
                         .map(|_| {
-                            let result = block_index * s.id as usize;
+                            let result = block_index * s.id;
                             block_index += 1;
                             result
                         })
@@ -240,7 +243,7 @@ impl Display for Filesystem {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct File {
-    id: u8,
+    id: usize,
     len: usize,
 }
 
@@ -316,6 +319,8 @@ impl Display for Span {
             f,
             "{}",
             match *self {
+                // This isn't a safe assumption for real input data --- `id` might be longer than
+                // one character.
                 Self::File(File { id, len }) => id.to_string().repeat(len),
                 Self::Empty(Empty { len }) => ".".repeat(len),
             }
@@ -473,8 +478,7 @@ mod test {
         let expected = Filesystem {
             spans: vec![
                 Span::File(File { id: 0, len: 5 }),
-                Span::Empty(Empty { len: 1 }),
-                Span::Empty(Empty { len: 5 }),
+                Span::Empty(Empty { len: 6 }),
             ],
         };
 

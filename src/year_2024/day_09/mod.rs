@@ -8,8 +8,7 @@ const INPUT: &str = include_str!("./data.txt");
 const EXAMPLE_INPUT: &str = "2333133121414131402";
 
 pub fn part_one() -> Integer {
-    let fs = Filesystem::parse(EXAMPLE_INPUT);
-    println!("{fs}");
+    let fs = Filesystem::parse(INPUT);
 
     fs.to_compact().checksum()
 }
