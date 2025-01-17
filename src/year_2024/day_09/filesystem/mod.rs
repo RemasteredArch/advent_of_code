@@ -205,6 +205,83 @@ impl Filesystem {
         spans
     }
 
+    pub fn to_defragmented(&self) -> Self {
+        struct FsIter {
+            fs: Mutex<Filesystem>,
+            id: usize,
+        }
+
+        impl FsIter {
+            pub fn next(&self) -> Option<Span> {
+                let spans = &mut self.fs.lock().ok()?.spans;
+
+                if spans.is_empty() {
+                    return None;
+                }
+
+                // Having to use `remove` is grossly `O(n)`, but the only way to make sure that
+                // `pop` didn't go past what `next` had already passed would have been to
+                // re-implement `pop`.
+                Some(spans.remove(0))
+            }
+
+            pub fn pop_fitting(&self, len: usize) -> Option<Span> {
+                let spans = &mut self.fs_mut().spans;
+
+                let (index, span) = spans.iter().enumerate().rev().find_map(|(index, &span)| {
+                    if span.try_to_file()?.len() <= len {
+                        return Some((index, span));
+                    }
+
+                    None
+                })?;
+
+                *spans
+                    .get_mut(index)
+                    .expect("`.enumerate().find()` will find something in-bounds") =
+                    Span::Empty(Empty { len: span.len() });
+
+                Some(span)
+            }
+
+            pub fn insert_front(&self, span: Span) {
+                self.fs_mut().spans.insert(0, span);
+            }
+
+            pub fn fs_mut(&self) -> std::sync::MutexGuard<Filesystem> {
+                self.fs.lock().unwrap()
+            }
+        }
+
+        let fs = FsIter {
+            id: 0,
+            fs: Mutex::new(self.clone()),
+        };
+        let mut spans = Self::default();
+
+        eprintln!("{}", fs.fs_mut());
+        eprintln!("{spans}");
+        while let Some(span) = fs.next() {
+            match span {
+                Span::File(_) => spans.push(span),
+                Span::Empty(mut empty) => {
+                    match fs.pop_fitting(empty.len()) {
+                        Some(fitting_span) => {
+                            spans.push(fitting_span);
+                            *empty.len_mut() -= fitting_span.len();
+                            fs.insert_front(Span::Empty(empty));
+                        }
+                        None => spans.push(span),
+                    };
+                }
+            }
+
+            eprintln!("{spans}");
+        }
+
+        spans
+    }
+
     pub fn checksum(&self) -> Integer {
         // Tracks the actual block-level index in the filesystem.
         let mut block_index = 0;

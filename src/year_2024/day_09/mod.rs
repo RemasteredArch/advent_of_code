@@ -14,5 +14,7 @@ pub fn part_one() -> Integer {
 }
 
 pub fn part_two() -> Integer {
-    todo!("implement part two")
+    let fs = Filesystem::parse(EXAMPLE_INPUT);
+
+    fs.to_defragmented().checksum()
 }
