@@ -7,6 +7,7 @@ pub struct Filesystem {
     spans: Vec<Span>,
 }
 
+#[expect(unused, reason = "in-progress")]
 impl Filesystem {
     pub fn parse(input: &str) -> Self {
         enum Next {
@@ -36,13 +37,13 @@ impl Filesystem {
     }
 
     fn last_file(&self) -> Option<File> {
-        self.spans.iter().rev().find_map(|s| s.try_to_file())
+        self.spans.iter().rev().find_map(Span::try_to_file)
     }
 
     fn last_file_mut(&mut self) -> Option<(&mut Span, File)> {
         self.spans.iter_mut().rev().find_map(|span| match *span {
             Span::File(file) => Some((span, file)),
-            _ => None,
+            Span::Empty(_) => None,
         })
     }
 
@@ -58,7 +59,7 @@ impl Filesystem {
             (Span::File(File { id: last_id, .. }), Span::File(File { id: value_id, .. }))
                 if last_id == value_id =>
             {
-                *last.len_mut() = len
+                *last.len_mut() = len;
             }
             (Span::Empty(_), Span::Empty(_)) => *last.len_mut() = len,
             _ => self.spans.push(value),
@@ -162,7 +163,7 @@ impl Filesystem {
                         .map(|&f| Span::File(f))
                         .collect();
 
-                    let len: usize = files.iter().map(|f| f.len()).sum();
+                    let len: usize = files.iter().map(Span::len).sum();
 
                     spans.append(files);
 
@@ -238,7 +239,7 @@ pub struct Empty {
 }
 
 impl Empty {
-    pub const fn len(&self) -> usize {
+    pub const fn len(self) -> usize {
         self.len
     }
 
@@ -256,36 +257,34 @@ pub enum Span {
 impl Span {
     pub const fn len(&self) -> usize {
         match *self {
-            Span::File(File { len, .. }) => len,
-            Span::Empty(Empty { len }) => len,
+            Self::Empty(Empty { len }) | Self::File(File { len, .. }) => len,
         }
     }
 
     pub const fn len_mut(&mut self) -> &mut usize {
         match self {
-            Span::File(File { len, .. }) => len,
-            Span::Empty(Empty { len }) => len,
+            Self::Empty(Empty { len }) | Self::File(File { len, .. }) => len,
         }
     }
 
-    pub fn try_to_file(&self) -> Option<File> {
+    pub const fn try_to_file(&self) -> Option<File> {
         match *self {
-            Span::File(file) => Some(file),
-            _ => None,
+            Self::File(file) => Some(file),
+            Self::Empty(_) => None,
         }
     }
 
     pub fn try_as_file_mut(&mut self) -> Option<&mut File> {
         match self {
-            Span::File(file) => Some(file),
-            _ => None,
+            Self::File(file) => Some(file),
+            Self::Empty(_) => None,
         }
     }
 
-    pub fn try_to_empty(&self) -> Option<Empty> {
+    pub const fn try_to_empty(&self) -> Option<Empty> {
         match *self {
-            Span::Empty(empty) => Some(empty),
-            _ => None,
+            Self::Empty(empty) => Some(empty),
+            Self::File(_) => None,
         }
     }
 }
@@ -295,9 +294,9 @@ impl Display for Span {
         write!(
             f,
             "{}",
-            match self {
-                Span::File(File { id, len }) => id.to_string().repeat(*len),
-                Span::Empty(Empty { len }) => ".".repeat(*len),
+            match *self {
+                Self::File(File { id, len }) => id.to_string().repeat(len),
+                Self::Empty(Empty { len }) => ".".repeat(len),
             }
         )
     }
