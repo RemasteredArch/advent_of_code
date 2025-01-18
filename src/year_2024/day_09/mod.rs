@@ -14,7 +14,7 @@ pub fn part_one() -> Integer {
 }
 
 pub fn part_two() -> Integer {
-    let fs = Filesystem::parse(EXAMPLE_INPUT);
+    let fs = Filesystem::parse(INPUT);
 
     fs.to_defragmented().checksum()
 }

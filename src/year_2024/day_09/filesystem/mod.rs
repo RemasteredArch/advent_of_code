@@ -259,8 +259,6 @@ impl Filesystem {
         };
         let mut spans = Self::default();
 
-        eprintln!("{}", fs.fs_mut());
-        eprintln!("{spans}");
         while let Some(span) = fs.next() {
             match span {
                 Span::File(_) => spans.push(span),
@@ -275,8 +273,6 @@ impl Filesystem {
                     };
                 }
             }
-
-            eprintln!("{spans}");
         }
 
         spans
@@ -291,16 +287,24 @@ impl Filesystem {
             // For every file,
             .filter_map(|s| {
                 // For every block that file spans,
-                s.try_to_file().map(|s| {
-                    { 0..s.len() }
-                        // Sum the `id` times the block-level index.
-                        .map(|_| {
-                            let result = block_index * s.id;
-                            block_index += 1;
-                            result
-                        })
-                        .sum::<usize>()
-                })
+                match s {
+                    Span::File(f) => {
+                        Some(
+                            { 0..f.len() }
+                                // Sum the `id` times the block-level index.
+                                .map(|_| {
+                                    let result = block_index * f.id;
+                                    block_index += 1;
+                                    result
+                                })
+                                .sum::<usize>(),
+                        )
+                    }
+                    Span::Empty(e) => {
+                        block_index += e.len();
+                        None
+                    }
+                }
             })
             .sum::<usize>()
             .try_into()
