@@ -1,9 +1,8 @@
-use super::{super::EXAMPLE_INPUT, Trail};
+use super::{super::EXAMPLE_INPUT, Island};
 
 #[test]
-fn trail_parse_display() {
-    let trail = Trail::parse(EXAMPLE_INPUT).unwrap();
+fn island_parse_display() {
+    let island = Island::parse(EXAMPLE_INPUT).unwrap();
 
-    assert_eq!(EXAMPLE_INPUT, trail.to_string());
+    assert_eq!(EXAMPLE_INPUT, island.to_string());
 }
-

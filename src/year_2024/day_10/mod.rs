@@ -1,6 +1,6 @@
 mod trail;
 
-use trail::Trail;
+use trail::Island;
 
 use crate::Integer;
 
@@ -11,11 +11,11 @@ const EXAMPLE_INPUT: &str = "0123
 9876";
 
 pub fn part_one() -> Integer {
-    let trail = Trail::parse(EXAMPLE_INPUT).unwrap();
+    let island = Island::parse(EXAMPLE_INPUT).unwrap();
 
-    println!("{trail}");
+    println!("{island}");
 
-    trail.sum_all_trails()
+    island.sum_all_trails()
 }
 
 pub fn part_two() -> Integer {

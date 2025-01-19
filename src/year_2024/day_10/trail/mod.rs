@@ -8,13 +8,13 @@ use crate::Integer;
 const MIN_HEIGHT: u8 = 0;
 const MAX_HEIGHT: u8 = 9;
 
-pub struct Trail {
+pub struct Island {
     grid: Box<[Box<[Height]>]>,
     columns: usize,
     rows: usize,
 }
 
-impl Trail {
+impl Island {
     pub fn parse(input: &str) -> Option<Self> {
         let mut grid = vec![];
 
@@ -205,7 +205,7 @@ impl Trail {
     }
 }
 
-impl Display for Trail {
+impl Display for Island {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut str = self
             .grid
