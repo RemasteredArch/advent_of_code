@@ -1,6 +1,6 @@
-mod trail;
+mod island;
 
-use trail::Island;
+use island::Island;
 
 use crate::Integer;
 
