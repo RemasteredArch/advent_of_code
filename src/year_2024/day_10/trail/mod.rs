@@ -1,4 +1,7 @@
-use std::collections::HashSet;
+#[cfg(test)]
+mod test;
+
+use std::{collections::HashSet, fmt::Display};
 
 use crate::Integer;
 
@@ -202,6 +205,28 @@ impl Trail {
     }
 }
 
+impl Display for Trail {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut str = self
+            .grid
+            .iter()
+            .map(|row| {
+                let mut str = row.iter().map(ToString::to_string).collect::<String>();
+                str.push('\n');
+                str
+            })
+            .collect::<String>();
+
+        assert_eq!(
+            str.pop()
+                .expect("the last character of every line is a newline"),
+            '\n'
+        );
+
+        write!(f, "{str}")
+    }
+}
+
 #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Position {
     coordinates: Coordinates,
@@ -242,6 +267,12 @@ impl Height {
 
     pub const fn get(self) -> u8 {
         self.height
+    }
+}
+
+impl Display for Height {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.height)
     }
 }
 

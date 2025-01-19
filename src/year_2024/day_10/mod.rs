@@ -13,6 +13,8 @@ const EXAMPLE_INPUT: &str = "0123
 pub fn part_one() -> Integer {
     let trail = Trail::parse(EXAMPLE_INPUT).unwrap();
 
+    println!("{trail}");
+
     trail.sum_all_trails()
 }
 
