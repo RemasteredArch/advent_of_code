@@ -8,6 +8,7 @@ use crate::Integer;
 const MIN_HEIGHT: u8 = 0;
 const MAX_HEIGHT: u8 = 9;
 
+#[derive(Clone, Hash, Debug, PartialEq, Eq)]
 pub struct Island {
     grid: Box<[Box<[Height]>]>,
     columns: usize,
@@ -18,7 +19,7 @@ impl Island {
     pub fn parse(input: &str) -> Option<Self> {
         let mut grid = vec![];
 
-        let mut rows = None;
+        let mut columns = None;
 
         for line in input.lines() {
             let mut row = vec![];
@@ -27,20 +28,20 @@ impl Island {
                 row.push(Height::new(char.to_digit(10)?.try_into().ok()?)?);
             }
 
-            match rows {
+            match columns {
                 Some(num) => {
                     if num != row.len() {
                         return None;
                     }
                 }
-                None => rows = Some(row.len()),
+                None => columns = Some(row.len()),
             }
 
             grid.push(row.into_boxed_slice());
         }
 
-        let columns = grid.len();
-        let rows = rows?;
+        let rows = grid.len();
+        let columns = columns?;
 
         if rows < 1 || columns < 1 {
             return None;
@@ -53,8 +54,43 @@ impl Island {
         })
     }
 
+    #[cfg_attr(not(test), allow(dead_code, reason = "used in tests"))]
+    pub fn new(input: Vec<Vec<u8>>) -> Option<Self> {
+        let mut grid = vec![];
+
+        let mut columns = None;
+
+        for row in input {
+            let mut new_row = vec![];
+
+            for column in row {
+                new_row.push(Height::new(column)?);
+            }
+
+            match columns {
+                Some(num) => {
+                    if num != new_row.len() {
+                        return None;
+                    }
+                }
+                None => columns = Some(new_row.len()),
+            }
+
+            grid.push(new_row.into_boxed_slice());
+        }
+
+        let columns = columns?;
+        let rows = grid.len();
+
+        Some(Self {
+            grid: grid.into_boxed_slice(),
+            columns,
+            rows,
+        })
+    }
+
     pub fn first_row(&self) -> Box<[Position]> {
-        let row_index = 1;
+        let row_index = 0;
 
         self.grid
             .first()
@@ -68,7 +104,7 @@ impl Island {
     }
 
     pub fn first_column(&self) -> Box<[Position]> {
-        let column_index = 1;
+        let column_index = 0;
 
         self.grid
             .iter()
@@ -86,7 +122,7 @@ impl Island {
         let row_index = self.rows - 1;
 
         self.grid
-            .first()
+            .last()
             .expect("`new` guarantees `len >= 1`")
             .iter()
             .enumerate()
