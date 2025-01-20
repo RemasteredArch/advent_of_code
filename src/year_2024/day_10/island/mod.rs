@@ -54,7 +54,7 @@ impl Island {
         })
     }
 
-    #[cfg_attr(not(test), allow(dead_code, reason = "used in tests"))]
+    #[cfg_attr(not(test), expect(dead_code, reason = "used in tests"))]
     pub fn new(input: Vec<Vec<u8>>) -> Option<Self> {
         let mut grid = vec![];
 
