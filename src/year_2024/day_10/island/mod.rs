@@ -179,17 +179,17 @@ impl Island {
     pub fn sum_all_trails(&self) -> Integer {
         self.trailheads()
             .iter()
-            .map(|&trailhead| self.sum_trails(Position::new(trailhead, Height::default())))
+            .map(|&trailhead| self.sum_trail(Position::new(trailhead, Height::default())))
             .sum()
     }
 
-    fn sum_trails(&self, trailhead: Position) -> Integer {
+    fn sum_trail(&self, trailhead: Position) -> Integer {
         let next_height = trailhead.height().get() + 1;
 
         Direction::all()
             .iter()
-            .filter_map(|direction| {
-                let coordinates = trailhead.coordinates().step(*direction).ok()?;
+            .filter_map(|&direction| {
+                let coordinates = trailhead.coordinates().step(direction).ok()?;
 
                 if self.get(coordinates)?.get() == next_height {
                     Some(coordinates)
@@ -197,25 +197,27 @@ impl Island {
                     None
                 }
             })
-            .map(|coordinates| {
-                self.sum_trail_impl(
-                    coordinates,
-                    trailhead.coordinates(),
-                    Integer::from(trailhead.height().get()),
-                )
+            .map(|coordinates| self.sum_trail_impl(coordinates, trailhead.coordinates()))
+            .fold(HashSet::new(), |accumulated, next_set| {
+                accumulated.union(&next_set).copied().collect()
             })
-            .sum()
+            .len()
+            .try_into()
+            .expect("a stack overflow will probably occur long before `usize` overflows `Integer`")
     }
 
     fn sum_trail_impl(
         &self,
         coordinates: Coordinates,
         previous: Coordinates,
-        sum: Integer,
-    ) -> Integer {
+    ) -> HashSet<Coordinates> {
         let Some(height) = self.get(coordinates) else {
-            return sum;
+            return HashSet::default();
         };
+
+        if height.get() == Height::MAX {
+            return HashSet::from([coordinates]);
+        }
 
         let next_height = height.get() + 1;
 
@@ -230,14 +232,10 @@ impl Island {
                     None
                 }
             })
-            .map(|next_coordinates| {
-                self.sum_trail_impl(
-                    next_coordinates,
-                    coordinates,
-                    sum + Integer::from(height.get()),
-                )
+            .map(|next_coordinates| self.sum_trail_impl(next_coordinates, coordinates))
+            .fold(HashSet::new(), |accumulated, next_set| {
+                accumulated.union(&next_set).copied().collect()
             })
-            .sum()
     }
 }
 

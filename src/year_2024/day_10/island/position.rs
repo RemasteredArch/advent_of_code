@@ -1,8 +1,5 @@
 use std::fmt::Display;
 
-const MIN_HEIGHT: u8 = 0;
-const MAX_HEIGHT: u8 = 9;
-
 #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Position {
     coordinates: Coordinates,
@@ -32,9 +29,12 @@ pub struct Height {
 }
 
 impl Height {
+    pub const MAX: u8 = 9;
+    pub const MIN: u8 = 0;
+
     pub const fn new(height: u8) -> Option<Self> {
         #[allow(clippy::absurd_extreme_comparisons, reason = "allows it to be changed")]
-        if height < MIN_HEIGHT || height > MAX_HEIGHT {
+        if height < Self::MIN || height > Self::MAX {
             return None;
         }
 
