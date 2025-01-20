@@ -89,80 +89,15 @@ impl Island {
         })
     }
 
-    pub fn first_row(&self) -> Box<[Position]> {
-        let row_index = 0;
-
-        self.grid
-            .first()
-            .expect("`new` guarantees `len >= 1`")
-            .iter()
-            .enumerate()
-            .map(|(column_index, &height)| {
-                Position::new(Coordinates::new(column_index, row_index), height)
-            })
-            .collect()
-    }
-
-    pub fn first_column(&self) -> Box<[Position]> {
-        let column_index = 0;
-
-        self.grid
-            .iter()
-            .enumerate()
-            .map(|(row_index, row)| {
-                Position::new(
-                    Coordinates::new(column_index, row_index),
-                    *row.first().expect("`new` guarantees `len >= 1`"),
-                )
-            })
-            .collect()
-    }
-
-    pub fn last_row(&self) -> Box<[Position]> {
-        let row_index = self.rows - 1;
-
-        self.grid
-            .last()
-            .expect("`new` guarantees `len >= 1`")
-            .iter()
-            .enumerate()
-            .map(|(column_index, &height)| {
-                Position::new(Coordinates::new(column_index, row_index), height)
-            })
-            .collect()
-    }
-
-    pub fn last_column(&self) -> Box<[Position]> {
-        let column_index = self.columns - 1;
-
-        self.grid
-            .iter()
-            .enumerate()
-            .map(|(row_index, row)| {
-                Position::new(
-                    Coordinates::new(column_index, row_index),
-                    *row.last().expect("`new` guarantees `len >= 1`"),
-                )
-            })
-            .collect()
-    }
-
-    pub fn edges(&self) -> [Box<[Position]>; 4] {
-        [
-            self.first_column(),
-            self.first_row(),
-            self.last_column(),
-            self.last_row(),
-        ]
-    }
-
-    /// All [`Coordinates`] along the edges of [`Self`] with a [`Height`] of `0`.
+    /// All [`Coordinates`] inside of [`Self`] with a [`Height`] of `0`.
     pub fn trailheads(&self) -> HashSet<Coordinates> {
         let mut positions = HashSet::new();
 
-        for position in self.edges().iter().flatten() {
-            if position.height().get() == 0 {
-                positions.insert(position.coordinates());
+        for (row_index, row) in self.grid.iter().enumerate() {
+            for (column_index, height) in row.iter().enumerate() {
+                if height.get() == Height::MIN {
+                    positions.insert(Coordinates::new(column_index, row_index));
+                }
             }
         }
 
