@@ -13,9 +13,11 @@ const EXAMPLE_INPUT: &str = "0123
 pub fn part_one() -> Integer {
     let island = Island::parse(INPUT).unwrap();
 
-    island.sum_all_trails()
+    island.count_all_trail_endpoints()
 }
 
 pub fn part_two() -> Integer {
-    todo!("implement part two")
+    let island = Island::parse(INPUT).unwrap();
+
+    island.count_all_trails()
 }
