@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod test;
 
-use std::{cell::RefCell, fmt::Display, sync::Mutex, time::Instant};
+use std::{cell::RefCell, fmt::Display, time::Instant};
 
 use crate::Integer;
 
@@ -33,68 +33,6 @@ impl Stones {
     }
 
     pub fn blink(self_cell: RefCell<Self>) -> Self {
-        struct StonesIter {
-            stones: RefCell<Vec<Stone>>,
-            iter_index: RefCell<usize>,
-        }
-
-        impl Iterator for StonesIter {
-            type Item = (usize, Stone);
-
-            fn next(&mut self) -> Option<Self::Item> {
-                let index = self.advance_index();
-
-                self.stones
-                    .get_mut()
-                    .get(index)
-                    .map(|&stone| (index, stone))
-            }
-        }
-
-        impl StonesIter {
-            pub const fn new(stones: Vec<Stone>) -> Self {
-                Self {
-                    stones: RefCell::new(stones),
-                    iter_index: RefCell::new(0),
-                }
-            }
-
-            fn advance_index(&self) -> usize {
-                let mut index_lock = self.iter_index.borrow_mut();
-
-                let index = *index_lock;
-                *index_lock += 1;
-                drop(index_lock);
-
-                index
-            }
-
-            fn index(&self) -> usize {
-                *self.iter_index.borrow_mut()
-            }
-
-            #[must_use]
-            pub fn set(&self, index: usize, value: Stone) -> Option<()> {
-                *self.stones.borrow_mut().get_mut(index)? = value;
-
-                Some(())
-            }
-
-            pub fn insert(&self, index: usize, value: Stone) {
-                self.stones.borrow_mut().insert(index, value);
-
-                if index <= self.index() {
-                    self.advance_index();
-                }
-            }
-
-            pub fn into_inner(self) -> Stones {
-                Stones {
-                    stones: self.stones.into_inner(),
-                }
-            }
-        }
-
         let mut iter = StonesIter::new(self_cell.into_inner().stones);
 
         while let Some((index, stone)) = iter.next() {
@@ -127,6 +65,68 @@ impl Display for Stones {
                 .collect::<Vec<_>>()
                 .join(" ")
         )
+    }
+}
+
+struct StonesIter {
+    stones: RefCell<Vec<Stone>>,
+    iter_index: RefCell<usize>,
+}
+
+impl Iterator for StonesIter {
+    type Item = (usize, Stone);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let index = self.advance_index();
+
+        self.stones
+            .get_mut()
+            .get(index)
+            .map(|&stone| (index, stone))
+    }
+}
+
+impl StonesIter {
+    pub const fn new(stones: Vec<Stone>) -> Self {
+        Self {
+            stones: RefCell::new(stones),
+            iter_index: RefCell::new(0),
+        }
+    }
+
+    fn advance_index(&self) -> usize {
+        let mut index_lock = self.iter_index.borrow_mut();
+
+        let index = *index_lock;
+        *index_lock += 1;
+        drop(index_lock);
+
+        index
+    }
+
+    fn index(&self) -> usize {
+        *self.iter_index.borrow_mut()
+    }
+
+    #[must_use]
+    pub fn set(&self, index: usize, value: Stone) -> Option<()> {
+        *self.stones.borrow_mut().get_mut(index)? = value;
+
+        Some(())
+    }
+
+    pub fn insert(&self, index: usize, value: Stone) {
+        self.stones.borrow_mut().insert(index, value);
+
+        if index <= self.index() {
+            self.advance_index();
+        }
+    }
+
+    pub fn into_inner(self) -> Stones {
+        Stones {
+            stones: self.stones.into_inner(),
+        }
     }
 }
 
