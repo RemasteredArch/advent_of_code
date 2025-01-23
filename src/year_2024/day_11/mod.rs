@@ -8,18 +8,13 @@ const INPUT: &str = include_str!("./data.txt");
 const EXAMPLE_INPUT: &str = "125 17";
 
 pub fn part_one() -> Integer {
-    let mut stones = Stones::parse(INPUT).unwrap();
-
-    stones.blink_n(25);
+    let stones = Stones::parse(EXAMPLE_INPUT).unwrap().blink_n(25);
 
     stones.len() as Integer
 }
 
 pub fn part_two() -> Integer {
-    let mut stones = Stones::parse(INPUT).unwrap();
-
-    // Uh oh! O(n^2)!
-    stones.blink_n(75);
+    let stones = Stones::parse(EXAMPLE_INPUT).unwrap().blink_n(75);
 
     stones.len() as Integer
 }

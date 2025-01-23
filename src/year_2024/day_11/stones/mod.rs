@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod test;
 
-use std::{fmt::Display, sync::Mutex, time::Instant};
+use std::{cell::RefCell, fmt::Display, sync::Mutex, time::Instant};
 
 use crate::Integer;
 
@@ -21,19 +21,33 @@ impl Stones {
         Some(Self { stones })
     }
 
-    pub fn blink_n(&mut self, blinks: usize) {
+    pub fn blink_n(mut self, blinks: usize) -> Self {
         let now = Instant::now();
 
         for i in 0..blinks {
             println!("{i} ({:#?})", now.elapsed());
-            *self = self.blink();
+            self = Self::blink(RefCell::new(self));
         }
+
+        self
     }
 
-    pub fn blink(&self) -> Self {
+    pub fn blink(self_cell: RefCell<Self>) -> Self {
         struct StonesIter {
             stones: Mutex<Vec<Stone>>,
             iter_index: Mutex<usize>,
+        }
+
+        impl Iterator for StonesIter {
+            type Item = (usize, Stone);
+
+            fn next(&mut self) -> Option<Self::Item> {
+                let stones = self.stones.lock().ok()?;
+
+                let index = self.advance_index();
+
+                stones.get(index).copied().map(|stone| (index, stone))
+            }
         }
 
         impl StonesIter {
@@ -42,14 +56,6 @@ impl Stones {
                     stones: Mutex::new(stones),
                     iter_index: Mutex::new(0),
                 }
-            }
-
-            pub fn next(&self) -> Option<(usize, Stone)> {
-                let stones = self.stones.lock().ok()?;
-
-                let index = self.advance_index();
-
-                stones.get(index).copied().map(|stone| (index, stone))
             }
 
             fn advance_index(&self) -> usize {
@@ -88,7 +94,7 @@ impl Stones {
             }
         }
 
-        let iter = StonesIter::new(self.stones.clone());
+        let mut iter = StonesIter::new(self_cell.into_inner().stones);
 
         while let Some((index, stone)) = iter.next() {
             let (left, right) = stone.blink();
