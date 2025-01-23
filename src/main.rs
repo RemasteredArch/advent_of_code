@@ -32,5 +32,6 @@ fn main() {
         "Eight", _08;
         "Nine", _09;
         "Ten", _10;
+        "Eleven", _11;
     ];
 }
