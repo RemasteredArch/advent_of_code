@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod test;
+
 use std::{fmt::Display, sync::Mutex};
 
 use crate::Integer;
@@ -11,7 +14,7 @@ impl Stones {
     pub fn parse(input: &str) -> Option<Self> {
         let mut stones = vec![];
 
-        for str in input.split(' ') {
+        for str in input.split(' ').map(str::trim_ascii_end) {
             stones.push(Stone::new(str.parse::<Integer>().ok()?));
         }
 
@@ -19,55 +22,81 @@ impl Stones {
     }
 
     pub fn blink_n(&mut self, blinks: usize) {
-        { 0..blinks }.for_each(|_| self.blink());
+        { 0..blinks }.for_each(|_| *self = self.blink());
     }
 
-    pub fn blink(&mut self) {
+    pub fn blink(&self) -> Self {
         struct StonesIter {
             stones: Mutex<Vec<Stone>>,
-            iter_index: usize,
+            iter_index: Mutex<usize>,
         }
 
         impl StonesIter {
-            pub fn next(&self) -> Option<(usize, Stone)> {
-                let stones = &mut self.stones.lock().ok()?;
+            pub const fn new(stones: Vec<Stone>) -> Self {
+                Self {
+                    stones: Mutex::new(stones),
+                    iter_index: Mutex::new(0),
+                }
+            }
 
-                stones
-                    .get(self.iter_index)
-                    .copied()
-                    .map(|stone| (self.iter_index, stone))
+            pub fn next(&self) -> Option<(usize, Stone)> {
+                let stones = self.stones.lock().ok()?;
+
+                let index = self.advance_index();
+
+                stones.get(index).copied().map(|stone| (index, stone))
+            }
+
+            fn advance_index(&self) -> usize {
+                let mut index_lock = self.iter_index.lock().unwrap();
+
+                let index = *index_lock;
+                *index_lock += 1;
+                drop(index_lock);
+
+                index
+            }
+
+            fn index(&self) -> usize {
+                *self.iter_index.lock().unwrap()
             }
 
             #[must_use]
             pub fn set(&self, index: usize, value: Stone) -> Option<()> {
-                let stones = &mut self.stones.lock().ok()?;
-
-                *stones.get_mut(index)? = value;
+                *self.stones.lock().ok()?.get_mut(index)? = value;
 
                 Some(())
             }
 
             pub fn insert(&self, index: usize, value: Stone) {
-                let stones = &mut self.stones.lock().unwrap();
+                self.stones.lock().unwrap().insert(index, value);
 
-                stones.insert(index, value);
+                if index <= self.index() {
+                    self.advance_index();
+                }
+            }
+
+            pub fn into_inner(self) -> Stones {
+                Stones {
+                    stones: self.stones.into_inner().unwrap(),
+                }
             }
         }
 
-        let iter = StonesIter {
-            stones: Mutex::new(self.stones),
-            iter_index: 0,
-        };
+        let iter = StonesIter::new(self.stones.clone());
 
         while let Some((index, stone)) = iter.next() {
             let (left, right) = stone.blink();
 
-            iter.set(index, left);
+            iter.set(index, left)
+                .expect("`enumerate` should provide valid indices");
 
             if let Some(stone) = right {
-                iter.insert(index + 1, stone)
+                iter.insert(index + 1, stone);
             }
         }
+
+        iter.into_inner()
     }
 
     pub fn len(&self) -> usize {
