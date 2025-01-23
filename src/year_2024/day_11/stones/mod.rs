@@ -21,29 +21,14 @@ impl Stones {
         Some(Self { stones })
     }
 
-    pub fn blink_n(mut self, blinks: usize) -> Self {
+    pub fn blink_n(self, blinks: usize) -> Self {
         let now = Instant::now();
 
+        let mut iter = StonesIter::new(self.stones);
+
         for i in 0..blinks {
-            println!("{i} ({:#?})", now.elapsed());
-            self = Self::blink(RefCell::new(self));
-        }
-
-        self
-    }
-
-    pub fn blink(self_cell: RefCell<Self>) -> Self {
-        let mut iter = StonesIter::new(self_cell.into_inner().stones);
-
-        while let Some((index, stone)) = iter.next() {
-            let (left, right) = stone.blink();
-
-            iter.set(index, left)
-                .expect("`enumerate` should provide valid indices");
-
-            if let Some(stone) = right {
-                iter.insert(index + 1, stone);
-            }
+            println!("{i} ({:#?}) ({})", now.elapsed(), iter.dbg_display());
+            iter.blink();
         }
 
         iter.into_inner()
@@ -94,6 +79,21 @@ impl StonesIter {
         }
     }
 
+    pub fn blink(&mut self) {
+        while let Some((index, stone)) = self.next() {
+            let (left, right) = stone.blink();
+
+            self.set(index, left)
+                .expect("`enumerate` should provide valid indices");
+
+            if let Some(stone) = right {
+                self.insert(index + 1, stone);
+            }
+        }
+
+        self.reset_index();
+    }
+
     fn advance_index(&self) -> usize {
         let mut index_lock = self.iter_index.borrow_mut();
 
@@ -102,6 +102,10 @@ impl StonesIter {
         drop(index_lock);
 
         index
+    }
+
+    fn reset_index(&self) {
+        *self.iter_index.borrow_mut() = 0;
     }
 
     fn index(&self) -> usize {
@@ -127,6 +131,18 @@ impl StonesIter {
         Stones {
             stones: self.stones.into_inner(),
         }
+    }
+
+    pub fn dbg_display(&self) -> String {
+        format!(
+            "{} stones, total {}",
+            self.stones.borrow().len(),
+            self.stones
+                .borrow()
+                .iter()
+                .map(|stone| stone.number())
+                .sum::<Integer>()
+        )
     }
 }
 
