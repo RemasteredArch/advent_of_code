@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod test;
 
-use std::{fmt::Display, sync::Mutex};
+use std::{fmt::Display, sync::Mutex, time::Instant};
 
 use crate::Integer;
 
@@ -22,7 +22,12 @@ impl Stones {
     }
 
     pub fn blink_n(&mut self, blinks: usize) {
-        { 0..blinks }.for_each(|_| *self = self.blink());
+        let now = Instant::now();
+
+        for i in 0..blinks {
+            println!("{i} ({:#?})", now.elapsed());
+            *self = self.blink();
+        }
     }
 
     pub fn blink(&self) -> Self {

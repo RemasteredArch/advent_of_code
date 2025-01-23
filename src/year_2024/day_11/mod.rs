@@ -16,5 +16,10 @@ pub fn part_one() -> Integer {
 }
 
 pub fn part_two() -> Integer {
-    todo!("implement part two")
+    let mut stones = Stones::parse(INPUT).unwrap();
+
+    // Uh oh! O(n^2)!
+    stones.blink_n(75);
+
+    stones.len() as Integer
 }
