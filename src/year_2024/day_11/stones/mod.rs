@@ -34,32 +34,33 @@ impl Stones {
 
     pub fn blink(self_cell: RefCell<Self>) -> Self {
         struct StonesIter {
-            stones: Mutex<Vec<Stone>>,
-            iter_index: Mutex<usize>,
+            stones: RefCell<Vec<Stone>>,
+            iter_index: RefCell<usize>,
         }
 
         impl Iterator for StonesIter {
             type Item = (usize, Stone);
 
             fn next(&mut self) -> Option<Self::Item> {
-                let stones = self.stones.lock().ok()?;
-
                 let index = self.advance_index();
 
-                stones.get(index).copied().map(|stone| (index, stone))
+                self.stones
+                    .get_mut()
+                    .get(index)
+                    .map(|&stone| (index, stone))
             }
         }
 
         impl StonesIter {
             pub const fn new(stones: Vec<Stone>) -> Self {
                 Self {
-                    stones: Mutex::new(stones),
-                    iter_index: Mutex::new(0),
+                    stones: RefCell::new(stones),
+                    iter_index: RefCell::new(0),
                 }
             }
 
             fn advance_index(&self) -> usize {
-                let mut index_lock = self.iter_index.lock().unwrap();
+                let mut index_lock = self.iter_index.borrow_mut();
 
                 let index = *index_lock;
                 *index_lock += 1;
@@ -69,18 +70,18 @@ impl Stones {
             }
 
             fn index(&self) -> usize {
-                *self.iter_index.lock().unwrap()
+                *self.iter_index.borrow_mut()
             }
 
             #[must_use]
             pub fn set(&self, index: usize, value: Stone) -> Option<()> {
-                *self.stones.lock().ok()?.get_mut(index)? = value;
+                *self.stones.borrow_mut().get_mut(index)? = value;
 
                 Some(())
             }
 
             pub fn insert(&self, index: usize, value: Stone) {
-                self.stones.lock().unwrap().insert(index, value);
+                self.stones.borrow_mut().insert(index, value);
 
                 if index <= self.index() {
                     self.advance_index();
@@ -89,7 +90,7 @@ impl Stones {
 
             pub fn into_inner(self) -> Stones {
                 Stones {
-                    stones: self.stones.into_inner().unwrap(),
+                    stones: self.stones.into_inner(),
                 }
             }
         }
