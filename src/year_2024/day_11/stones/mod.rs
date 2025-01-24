@@ -22,13 +22,28 @@ impl Stones {
     }
 
     pub fn blink_n(self, blinks: usize) -> Self {
-        let now = Instant::now();
+        print!("Starting as: {self}");
 
         let mut iter = StonesIter::new(self.stones);
 
+        println!(" ({})", iter.dbg_display());
+
+        let now = Instant::now();
         for i in 0..blinks {
-            println!("{i} ({:#?}) ({})", now.elapsed(), iter.dbg_display());
             iter.blink();
+            println!(
+                // Lengths are chosen based on the longest observed outputs. This is only debug
+                // logging, I'm okay with some magic numbers and nasty code.
+                "Finished iteration  {:>2}  in  {:>12}  (now {:<23}){}",
+                i + 1,
+                format!("{:#?}", now.elapsed()),
+                iter.dbg_display(),
+                if i < blinks - 1 {
+                    format!(", starting iteration {:>2}", i + 2)
+                } else {
+                    String::new()
+                }
+            );
         }
 
         iter.into_inner()
@@ -204,25 +219,20 @@ impl Stone {
         self.number
     }
 
-    pub fn blink(self) -> (Self, Option<Self>) {
+    pub const fn blink(self) -> (Self, Option<Self>) {
         if self.number == 0 {
             return (Self::new(1), None);
         }
 
-        let as_str = self.to_string();
-        let len = as_str.len();
+        let len = self.number().ilog10() + 1;
 
         if len % 2 == 0 {
-            let (left, right) = as_str.split_at(len / 2);
+            // E.g., `1234` -> `12`.
+            let left = self.number() / (10 as Integer).pow(len / 2);
+            // E.g., `1234` -> `34`.
+            let right = self.number() - left * (10 as Integer).pow(len / 2);
 
-            let parse = |str: &str| {
-                Self::new(
-                    str.parse::<Integer>()
-                        .expect("strings produced by `number` should be numbers"),
-                )
-            };
-
-            return (parse(left), Some(parse(right)));
+            return (Self::new(left), Some(Self::new(right)));
         }
 
         (Self::new(self.number * 2024), None)
