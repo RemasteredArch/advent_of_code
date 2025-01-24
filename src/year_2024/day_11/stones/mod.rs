@@ -54,91 +54,139 @@ impl Display for Stones {
 }
 
 struct StonesIter {
-    stones: RefCell<Vec<Stone>>,
-    iter_index: RefCell<usize>,
+    stones: RefCell<StoneBufs>,
 }
 
 impl Iterator for StonesIter {
-    type Item = (usize, Stone);
+    type Item = Stone;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let index = self.advance_index();
-
-        self.stones
-            .get_mut()
-            .get(index)
-            .map(|&stone| (index, stone))
+        self.stones.borrow_mut().pop()
     }
 }
 
 impl StonesIter {
-    pub const fn new(stones: Vec<Stone>) -> Self {
+    pub fn new(stones: Vec<Stone>) -> Self {
         Self {
-            stones: RefCell::new(stones),
-            iter_index: RefCell::new(0),
+            stones: RefCell::new(StoneBufs::new(stones)),
         }
     }
 
     pub fn blink(&mut self) {
-        while let Some((index, stone)) = self.next() {
+        while let Some(stone) = self.next() {
             let (left, right) = stone.blink();
 
-            self.set(index, left)
-                .expect("`enumerate` should provide valid indices");
+            let stones = self.stones.get_mut();
+
+            stones.push(left);
 
             if let Some(stone) = right {
-                self.insert(index + 1, stone);
+                stones.push(stone);
             }
         }
 
-        self.reset_index();
-    }
-
-    fn advance_index(&self) -> usize {
-        let mut index_lock = self.iter_index.borrow_mut();
-
-        let index = *index_lock;
-        *index_lock += 1;
-        drop(index_lock);
-
-        index
-    }
-
-    fn reset_index(&self) {
-        *self.iter_index.borrow_mut() = 0;
-    }
-
-    fn index(&self) -> usize {
-        *self.iter_index.borrow_mut()
-    }
-
-    #[must_use]
-    pub fn set(&self, index: usize, value: Stone) -> Option<()> {
-        *self.stones.borrow_mut().get_mut(index)? = value;
-
-        Some(())
-    }
-
-    pub fn insert(&self, index: usize, value: Stone) {
-        self.stones.borrow_mut().insert(index, value);
-
-        if index <= self.index() {
-            self.advance_index();
-        }
+        // Should this be here?
+        self.stones.get_mut().swap();
     }
 
     pub fn into_inner(self) -> Stones {
         Stones {
-            stones: self.stones.into_inner(),
+            // Is `into_drain` correct? Why not `into_current`?
+            stones: self.stones.into_inner().into_drain(),
         }
     }
 
     pub fn dbg_display(&self) -> String {
+        self.stones.borrow().dbg_display_drain()
+    }
+}
+
+struct StoneBufs {
+    buf_a: Vec<Stone>,
+    buf_b: Vec<Stone>,
+    current: Buf,
+    drain_index: usize,
+}
+
+impl StoneBufs {
+    pub fn new(stones: Vec<Stone>) -> Self {
+        Self {
+            buf_a: Vec::with_capacity(stones.len()),
+            buf_b: stones,
+            current: Buf::A,
+            drain_index: 0,
+        }
+    }
+
+    pub fn push(&mut self, value: Stone) {
+        self.current_mut().push(value);
+    }
+
+    pub fn pop(&mut self) -> Option<Stone> {
+        // ```text
+        // 0123456
+        //   ^ drain_index: 4
+        //     actual_index: 7 - (4 + 1) = 2
+        // ```
+        let actual_index = self.drain().len().checked_sub(self.drain_index + 1)?;
+
+        self.drain_index += 1;
+
+        Some(
+            *self
+                .drain()
+                .get(actual_index)
+                .expect("`checked_sub` will overflow before `get`"),
+        )
+    }
+
+    pub fn swap(&mut self) {
+        assert!(self.drain_index == self.drain().len() - 1);
+        self.drain_index = 0;
+
+        self.current_mut().truncate(0);
+
+        self.current = match self.current {
+            Buf::A => Buf::B,
+            Buf::B => Buf::A,
+        }
+    }
+
+    fn current_mut(&mut self) -> &mut Vec<Stone> {
+        match self.current {
+            Buf::A => &mut self.buf_a,
+            Buf::B => &mut self.buf_b,
+        }
+    }
+
+    const fn drain(&self) -> &Vec<Stone> {
+        match self.current {
+            Buf::A => &self.buf_b,
+            Buf::B => &self.buf_a,
+        }
+    }
+
+    pub fn into_current(self) -> Vec<Stone> {
+        match self.current {
+            Buf::A => self.buf_a,
+            Buf::B => self.buf_b,
+        }
+    }
+
+    pub fn into_drain(self) -> Vec<Stone> {
+        match self.current {
+            Buf::A => self.buf_b,
+            Buf::B => self.buf_a,
+        }
+    }
+
+    fn dbg_display_drain(&self) -> String {
+        // What should I consider the "true" state of the [`StonesBuf`]? What does it mean to
+        // be `n` elements long when you're actually two [`Vec`]s in a trench coat?
         format!(
-            "{} stones, total {}",
-            self.stones.borrow().len(),
-            self.stones
-                .borrow()
+            "drain: {} stones, total {}",
+            self.drain().len(),
+            self.drain()
                 .iter()
                 .map(|stone| stone.number())
                 .sum::<Integer>()
@@ -147,6 +195,12 @@ impl StonesIter {
 }
 
 #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq)]
+enum Buf {
+    A,
+    B,
+}
+
+#[derive(Clone, Copy, Hash, Debug, PartialEq, Eq, Default)]
 pub struct Stone {
     number: Integer,
 }
