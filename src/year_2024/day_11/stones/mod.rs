@@ -61,7 +61,7 @@ impl Iterator for StonesIter {
     type Item = Stone;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.stones.borrow_mut().pop()
+        self.stones.get_mut().pop_front()
     }
 }
 
@@ -85,13 +85,11 @@ impl StonesIter {
             }
         }
 
-        // Should this be here?
         self.stones.get_mut().swap();
     }
 
     pub fn into_inner(self) -> Stones {
         Stones {
-            // Is `into_drain` correct? Why not `into_current`?
             stones: self.stones.into_inner().into_drain(),
         }
     }
@@ -122,7 +120,7 @@ impl StoneBufs {
         self.current_mut().push(value);
     }
 
-    pub fn pop(&mut self) -> Option<Stone> {
+    pub fn pop_front(&mut self) -> Option<Stone> {
         // ```text
         // 0123456
         //   ^ drain_index: 4
@@ -141,15 +139,16 @@ impl StoneBufs {
     }
 
     pub fn swap(&mut self) {
-        assert!(self.drain_index == self.drain().len() - 1);
+        // Not `self.drain().len() - 1` because `Self::pop` will increment past the last index.
+        assert!(self.drain_index == self.drain().len());
         self.drain_index = 0;
-
-        self.current_mut().truncate(0);
 
         self.current = match self.current {
             Buf::A => Buf::B,
             Buf::B => Buf::A,
-        }
+        };
+
+        self.current_mut().truncate(0);
     }
 
     fn current_mut(&mut self) -> &mut Vec<Stone> {
@@ -181,16 +180,7 @@ impl StoneBufs {
     }
 
     fn dbg_display_drain(&self) -> String {
-        // What should I consider the "true" state of the [`StonesBuf`]? What does it mean to
-        // be `n` elements long when you're actually two [`Vec`]s in a trench coat?
-        format!(
-            "drain: {} stones, total {}",
-            self.drain().len(),
-            self.drain()
-                .iter()
-                .map(|stone| stone.number())
-                .sum::<Integer>()
-        )
+        format!("drain: {} stones", self.drain().len())
     }
 }
 
