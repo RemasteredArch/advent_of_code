@@ -1,43 +1,42 @@
 #[cfg(test)]
 mod test;
 
-use std::{cell::RefCell, fmt::Display, time::Instant};
+use std::{cell::RefCell, collections::HashMap, fmt::Display, time::Instant};
 
 use crate::Integer;
 
-#[derive(Clone, Hash, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Stones {
-    stones: Vec<Stone>,
+    stones: StoneMaps,
 }
 
 impl Stones {
     pub fn parse(input: &str) -> Option<Self> {
-        let mut stones = vec![];
+        let mut stones = HashMap::new();
 
         for str in input.split(' ').map(str::trim_ascii_end) {
-            stones.push(Stone::new(str.parse::<Integer>().ok()?));
+            increment_or_insert_n(&mut stones, Stone::new(str.parse::<Integer>().ok()?), 1);
         }
 
-        Some(Self { stones })
+        Some(Self {
+            stones: StoneMaps::new(stones),
+        })
     }
 
-    pub fn blink_n(self, blinks: usize) -> Self {
-        print!("Starting as: {self}");
-
-        let mut iter = StonesIter::new(self.stones);
-
-        println!(" ({})", iter.dbg_display());
+    pub fn blink_n(&mut self, blinks: usize) {
+        print!("Starting as: {self} ({})", self.stones);
 
         let now = Instant::now();
         for i in 0..blinks {
-            iter.blink();
+            self.stones.blink();
             println!(
                 // Lengths are chosen based on the longest observed outputs. This is only debug
                 // logging, I'm okay with some magic numbers and nasty code.
-                "Finished iteration  {:>2}  in  {:>12}  (now {:<23}){}",
+                "Finished iteration  {:>2}  in  {:>10}  (now {:>15} stones, {:>4} unique){}",
                 i + 1,
                 format!("{:#?}", now.elapsed()),
-                iter.dbg_display(),
+                self.stones.len(),
+                self.stones.unique_len(),
                 if i < blinks - 1 {
                     format!(", starting iteration {:>2}", i + 2)
                 } else {
@@ -45,157 +44,147 @@ impl Stones {
                 }
             );
         }
-
-        iter.into_inner()
     }
 
     pub fn len(&self) -> usize {
         self.stones.len()
     }
+
+    /// For large maps, this can be obscene amounts of memory! For the example input, this is 476
+    /// TiB of memory!
+    #[cfg_attr(not(test), expect(dead_code, reason = "used in tests"))]
+    pub fn as_slice(&self) -> Box<[Stone]> {
+        self.stones.as_slice()
+    }
 }
 
 impl Display for Stones {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            self.stones
-                .iter()
-                .map(Stone::to_string)
-                .collect::<Vec<_>>()
-                .join(" ")
-        )
+        write!(f, "{}", self.stones)
     }
 }
 
-struct StonesIter {
-    stones: RefCell<StoneBufs>,
+fn increment_or_insert_n<K: Eq + std::hash::Hash>(
+    map: &mut HashMap<K, usize>,
+    key: K,
+    count: usize,
+) {
+    match map.get_mut(&key) {
+        Some(current_count) => *current_count += count,
+        None => {
+            map.insert(key, count);
+        }
+    };
 }
 
-impl Iterator for StonesIter {
-    type Item = Stone;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.stones.get_mut().pop_front()
-    }
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct StoneMaps {
+    map_a: RefCell<HashMap<Stone, usize>>,
+    map_b: RefCell<HashMap<Stone, usize>>,
+    current: Buf,
+    cached_blinks: RefCell<HashMap<Stone, (Stone, Option<Stone>)>>,
 }
 
-impl StonesIter {
-    pub fn new(stones: Vec<Stone>) -> Self {
+impl StoneMaps {
+    pub fn new(stones: HashMap<Stone, usize>) -> Self {
         Self {
-            stones: RefCell::new(StoneBufs::new(stones)),
+            map_a: RefCell::new(HashMap::with_capacity(stones.len())),
+            map_b: RefCell::new(stones),
+            current: Buf::A,
+            cached_blinks: RefCell::new(HashMap::new()),
         }
     }
 
     pub fn blink(&mut self) {
-        while let Some(stone) = self.next() {
-            let (left, right) = stone.blink();
+        for (stone, count) in self.drain_mut().drain() {
+            let (stone, maybe_stone) = self.blink_stone(stone);
 
-            let stones = self.stones.get_mut();
+            increment_or_insert_n(&mut self.current_mut(), stone, count);
 
-            stones.push(left);
-
-            if let Some(stone) = right {
-                stones.push(stone);
+            if let Some(stone) = maybe_stone {
+                increment_or_insert_n(&mut self.current_mut(), stone, count);
             }
         }
 
-        self.stones.get_mut().swap();
+        self.swap();
     }
 
-    pub fn into_inner(self) -> Stones {
-        Stones {
-            stones: self.stones.into_inner().into_drain(),
-        }
-    }
-
-    pub fn dbg_display(&self) -> String {
-        self.stones.borrow().dbg_display_drain()
-    }
-}
-
-struct StoneBufs {
-    buf_a: Vec<Stone>,
-    buf_b: Vec<Stone>,
-    current: Buf,
-    drain_index: usize,
-}
-
-impl StoneBufs {
-    pub fn new(stones: Vec<Stone>) -> Self {
-        Self {
-            buf_a: Vec::with_capacity(stones.len()),
-            buf_b: stones,
-            current: Buf::A,
-            drain_index: 0,
-        }
-    }
-
-    pub fn push(&mut self, value: Stone) {
-        self.current_mut().push(value);
-    }
-
-    pub fn pop_front(&mut self) -> Option<Stone> {
-        // ```text
-        // 0123456
-        //   ^ drain_index: 4
-        //     actual_index: 7 - (4 + 1) = 2
-        // ```
-        let actual_index = self.drain().len().checked_sub(self.drain_index + 1)?;
-
-        self.drain_index += 1;
-
-        Some(
-            *self
-                .drain()
-                .get(actual_index)
-                .expect("`checked_sub` will overflow before `get`"),
-        )
-    }
-
-    pub fn swap(&mut self) {
-        // Not `self.drain().len() - 1` because `Self::pop` will increment past the last index.
-        assert!(self.drain_index == self.drain().len());
-        self.drain_index = 0;
+    fn swap(&mut self) {
+        assert!(self.drain().is_empty());
 
         self.current = match self.current {
             Buf::A => Buf::B,
             Buf::B => Buf::A,
         };
-
-        self.current_mut().truncate(0);
     }
 
-    fn current_mut(&mut self) -> &mut Vec<Stone> {
+    fn current_mut(&self) -> std::cell::RefMut<'_, HashMap<Stone, usize>> {
         match self.current {
-            Buf::A => &mut self.buf_a,
-            Buf::B => &mut self.buf_b,
+            Buf::A => self.map_a.borrow_mut(),
+            Buf::B => self.map_b.borrow_mut(),
         }
     }
 
-    const fn drain(&self) -> &Vec<Stone> {
+    fn drain(&self) -> std::cell::Ref<'_, HashMap<Stone, usize>> {
         match self.current {
-            Buf::A => &self.buf_b,
-            Buf::B => &self.buf_a,
+            Buf::A => self.map_b.borrow(),
+            Buf::B => self.map_a.borrow(),
         }
     }
 
-    pub fn into_current(self) -> Vec<Stone> {
+    fn drain_mut(&self) -> std::cell::RefMut<'_, HashMap<Stone, usize>> {
         match self.current {
-            Buf::A => self.buf_a,
-            Buf::B => self.buf_b,
+            Buf::A => self.map_b.borrow_mut(),
+            Buf::B => self.map_a.borrow_mut(),
         }
     }
 
-    pub fn into_drain(self) -> Vec<Stone> {
-        match self.current {
-            Buf::A => self.buf_b,
-            Buf::B => self.buf_a,
-        }
+    fn blink_stone(&self, stone: Stone) -> (Stone, Option<Stone>) {
+        let maybe_stones = self.cached_blinks.borrow().get(&stone).copied();
+
+        maybe_stones.unwrap_or_else(|| {
+            let result = stone.blink();
+            self.cached_blinks.borrow_mut().insert(stone, result);
+            result
+        })
     }
 
-    fn dbg_display_drain(&self) -> String {
-        format!("drain: {} stones", self.drain().len())
+    pub fn len(&self) -> usize {
+        self.drain().values().sum()
+    }
+
+    pub fn unique_len(&self) -> usize {
+        self.drain().len()
+    }
+
+    /// For large maps, this can be obscene amounts of memory! For the example input, this is 476
+    /// TiB of memory!
+    pub fn as_slice(&self) -> Box<[Stone]> {
+        let mut vec: Vec<Stone> = vec![];
+
+        for (&stone, &count) in self.drain().iter() {
+            vec.append(&mut [stone].repeat(count));
+        }
+
+        vec.into_boxed_slice()
+    }
+}
+
+impl Display for StoneMaps {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut stones = self
+            .drain()
+            .iter()
+            .map(|(stone, count)| {
+                // E.g., `"25, 25, 25, "`.
+                (stone.to_string() + " ").repeat(*count)
+            })
+            .collect::<String>();
+
+        assert_eq!(stones.pop(), Some(' '));
+
+        // E.g., `"25, 25, 25, 43, 43"`.
+        write!(f, "{stones}")
     }
 }
 
@@ -205,7 +194,7 @@ enum Buf {
     B,
 }
 
-#[derive(Clone, Copy, Hash, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, Hash, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Stone {
     number: Integer,
 }
