@@ -24,25 +24,9 @@ impl Stones {
     }
 
     pub fn blink_n(&mut self, blinks: usize) {
-        print!("Starting as: {self} ({})", self.stones);
-
         let now = Instant::now();
         for i in 0..blinks {
             self.stones.blink();
-            println!(
-                // Lengths are chosen based on the longest observed outputs. This is only debug
-                // logging, I'm okay with some magic numbers and nasty code.
-                "Finished iteration  {:>2}  in  {:>10}  (now {:>15} stones, {:>4} unique){}",
-                i + 1,
-                format!("{:#?}", now.elapsed()),
-                self.stones.len(),
-                self.stones.unique_len(),
-                if i < blinks - 1 {
-                    format!(", starting iteration {:>2}", i + 2)
-                } else {
-                    String::new()
-                }
-            );
         }
     }
 
