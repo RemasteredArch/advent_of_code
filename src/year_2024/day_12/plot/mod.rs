@@ -1,4 +1,4 @@
-use std::{collections::HashMap, hash::Hash};
+use std::{fmt::Display, hash::Hash};
 
 use crate::Integer;
 
@@ -19,7 +19,7 @@ impl Plot {
             let mut row = vec![];
 
             for char in line.chars() {
-                row.push(Plant::new(char));
+                row.push(Plant::new(char).ok_or(ParseError::InvalidPlant)?);
             }
 
             match columns {
@@ -49,66 +49,103 @@ impl Plot {
     }
 
     pub fn fencing_quote(&self) -> Integer {
-        // `<Plant, (Area, Perimeter)>`
-        let mut plant_areas_perimters = HashMap::<Plant, (Integer, Integer)>::new();
+        struct Grid {
+            grid: Box<[Box<[Plant]>]>,
+            regions: Vec<(Integer, Integer)>,
+        }
 
-        let mut increment_or_insert = |plant: &Plant, perimeter: Integer| {
-            match plant_areas_perimters.get_mut(plant) {
-                Some(plant) => {
+        impl Grid {
+            pub fn get(&self, coordinates: Coordinates) -> Option<Plant> {
+                self.grid
+                    .get(coordinates.row)?
+                    .get(coordinates.column)
+                    .copied()
+            }
+
+            fn get_mut(&mut self, coordinates: Coordinates) -> Option<&mut Plant> {
+                self.grid
+                    .get_mut(coordinates.row)?
+                    .get_mut(coordinates.column)
+            }
+
+            fn null(&mut self, coordinates: Coordinates) {
+                if let Some(plant) = self.get_mut(coordinates) {
+                    *plant = Plant::NULL;
+                }
+            }
+
+            pub fn visit(&mut self, coordinates: Coordinates) {
+                let plant = match self.get(coordinates) {
+                    Some(plant) if plant != Plant::NULL => plant,
+                    _ => return,
+                };
+
+                self.regions.push((0, 0));
+                self.visit_impl(plant, coordinates);
+            }
+
+            /// Returns `true` if the plant at the `coordinates` matches `region_type`.
+            ///
+            /// Adds to [`Self::regions`].
+            fn visit_impl(&mut self, region_type: Plant, coordinates: Coordinates) -> bool {
+                let plant = match self.get(coordinates) {
+                    Some(plant) if plant != region_type => plant,
+                    _ => return false,
+                };
+                self.null(coordinates);
+
+                let non_matching_edges = Direction::all()
+                    .iter()
+                    .filter(|&&edge| {
+                        let Ok(next_coordinates) = coordinates.step(edge) else {
+                            return true;
+                        };
+
+                        !self.visit_impl(region_type, next_coordinates)
+                    })
+                    .count();
+
+                let region = self
+                    .regions
+                    .last_mut()
+                    .expect("`Self::visit` includes a `push`");
+                *region = (
                     // Area
-                    plant.0 += 1;
+                    region.0 + 1,
                     // Perimeter
-                    plant.1 += perimeter;
-                }
-                None => {
-                    plant_areas_perimters.insert(*plant, (1, perimeter));
-                }
-            };
-        };
-
-        for (row_index, row) in self.grid.iter().enumerate() {
-            for (column_index, plant) in row.iter().enumerate() {
-                increment_or_insert(
-                    plant,
-                    self.perimeter(Coordinates::new(column_index, row_index))
-                        .expect("`.enumerate` should return in-bounds indices"),
+                    region.1 + non_matching_edges as Integer,
                 );
+
+                true
             }
         }
 
-        plant_areas_perimters
-            .values()
-            .map(|(area, perimeter)| area * perimeter)
-            .sum()
-    }
+        let mut grid = Grid {
+            grid: self.grid.clone(),
+            regions: vec![],
+        };
 
-    /// Get the number of edges exposed to nothing or a different type of plant.
-    fn perimeter(&self, plant: Coordinates) -> Option<Integer> {
-        fn type_at_edge(plot: &Plot, plant: Coordinates, edge: Direction) -> Option<Plant> {
-            let plant = plant.step(edge).ok()?;
-
-            Some(*plot.grid.get(plant.row)?.get(plant.column)?)
+        for row_index in 0..self.rows {
+            for column_index in 0..self.columns {
+                grid.visit(Coordinates::new(column_index, row_index));
+            }
         }
 
-        let plant_type = *self.grid.get(plant.row)?.get(plant.column)?;
-
-        let non_matching_edges = Direction::all()
+        grid.regions
             .iter()
-            .filter(|&&direction| {
-                // Keep only if there is no plant at that edge (i.e., that's the edge of the plot)
-                // or the plant does not match the current plant.
-                type_at_edge(self, plant, direction).is_none_or(|t| t != plant_type)
-            })
-            .count();
-
-        Some(non_matching_edges as Integer)
+            .map(|(area, perimeter)| area * perimeter)
+            .sum()
     }
 }
 
 #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq)]
 pub enum ParseError {
+    /// When the grid is not at least one row and one column.
     EmptyGrid,
+    /// When a rows in the grid has a different length than the first row.
     UnevenGrid,
+    /// When a character fails to pass [`Plant::new`].
+    InvalidPlant,
 }
 
 #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -117,8 +154,25 @@ pub struct Plant {
 }
 
 impl Plant {
-    pub const fn new(char: char) -> Self {
-        Self { char }
+    /// A value reserved to represent popped characters.
+    pub const NULL: Self = Self { char: '0' };
+
+    pub const fn new(char: char) -> Option<Self> {
+        if char == Self::NULL.get() {
+            return None;
+        }
+
+        Some(Self { char })
+    }
+
+    pub const fn get(self) -> char {
+        self.char
+    }
+}
+
+impl Display for Plant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.char)
     }
 }
 
