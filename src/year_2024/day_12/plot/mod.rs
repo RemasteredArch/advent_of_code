@@ -1,6 +1,10 @@
-use std::{fmt::Display, hash::Hash};
+mod places;
+
+use places::{AddError, Coordinates, Direction, Plant};
 
 use crate::Integer;
+
+use std::hash::Hash;
 
 #[derive(Clone, Hash, Debug, PartialEq, Eq)]
 pub struct Plot {
@@ -49,102 +53,7 @@ impl Plot {
     }
 
     pub fn fencing_quote(&self) -> Integer {
-        struct Grid<'a> {
-            plot: Box<[Box<[Plant]>]>,
-            regions: Vec<(Integer, Integer)>,
-            original: &'a [Box<[Plant]>],
-        }
-
-        impl Grid<'_> {
-            fn get_impl(grid: &[Box<[Plant]>], coordinates: Coordinates) -> Option<Plant> {
-                grid.get(coordinates.row)?.get(coordinates.column).copied()
-            }
-
-            pub fn get(&self, coordinates: Coordinates) -> Option<Plant> {
-                Self::get_impl(&self.plot, coordinates)
-            }
-
-            fn get_mut(&mut self, coordinates: Coordinates) -> Option<&mut Plant> {
-                self.plot
-                    .get_mut(coordinates.row)?
-                    .get_mut(coordinates.column)
-            }
-
-            fn null(&mut self, coordinates: Coordinates) {
-                if let Some(plant) = self.get_mut(coordinates) {
-                    *plant = Plant::NULL;
-                }
-            }
-
-            pub fn visit(&mut self, coordinates: Coordinates) {
-                let plant = match self.get(coordinates) {
-                    Some(plant) if plant != Plant::NULL => plant,
-                    _ => return,
-                };
-
-                self.regions.push((0, 0));
-                self.visit_impl(plant, coordinates);
-            }
-
-            /// Returns `true` if the plant at the `coordinates` matches `region_type`.
-            ///
-            /// Adds to [`Self::regions`].
-            fn visit_impl(&mut self, region_type: Plant, coordinates: Coordinates) -> bool {
-                // Escape if plant at `coordinates` is non-matching, otherwise mark it as visited
-                // and proceed.
-                match self.get(coordinates) {
-                    // Matching and unvisited plant, continue.
-                    Some(plant) if plant == region_type => (),
-                    // Visited plant; return `true` if it was previously matching, but do not continue.
-                    Some(plant) if plant == Plant::NULL => {
-                        return Self::get_impl(self.original, coordinates)
-                            .is_some_and(|plant| plant == region_type);
-                    }
-                    // No plant or non-matching plant, return `false`.
-                    _ => return false,
-                }
-
-                if let Some(plant) = self.get_mut(coordinates) {
-                    *plant = Plant::new('!').unwrap();
-                }
-                self.null(coordinates);
-
-                let non_matching_edges = Direction::all()
-                    .iter()
-                    .filter(|&&edge| {
-                        let next_coordinates = match coordinates.step(edge) {
-                            Ok(next_coordinates) => next_coordinates,
-                            Err(AddError::OutOfBounds) => return true,
-                            Err(AddError::Overflow) => {
-                                panic!("overflowed while attempted to advance coordinates")
-                            }
-                        };
-
-                        !self.visit_impl(region_type, next_coordinates)
-                    })
-                    .count();
-
-                let region = self
-                    .regions
-                    .last_mut()
-                    .expect("`Self::visit` includes a `push`");
-
-                *region = (
-                    // Area
-                    region.0 + 1,
-                    // Perimeter
-                    region.1 + non_matching_edges as Integer,
-                );
-
-                true
-            }
-        }
-
-        let mut grid = Grid {
-            plot: self.grid.clone(),
-            regions: vec![],
-            original: &self.grid,
-        };
+        let mut grid = Grid::new(&self.grid);
 
         for row_index in 0..self.rows {
             for column_index in 0..self.columns {
@@ -169,94 +78,101 @@ pub enum ParseError {
     InvalidPlant,
 }
 
-#[derive(Clone, Copy, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Plant {
-    char: char,
+struct Grid<'a> {
+    plot: Box<[Box<[Plant]>]>,
+    regions: Vec<(Integer, Integer)>,
+    original: &'a [Box<[Plant]>],
 }
 
-impl Plant {
-    /// A value reserved to represent popped characters.
-    pub const NULL: Self = Self { char: '0' };
-
-    pub const fn new(char: char) -> Option<Self> {
-        if char == Self::NULL.get() {
-            return None;
+impl<'a> Grid<'a> {
+    pub fn new(grid: &'a [Box<[Plant]>]) -> Self {
+        Self {
+            plot: grid.into(),
+            regions: vec![],
+            original: grid,
         }
-
-        Some(Self { char })
     }
 
-    pub const fn get(self) -> char {
-        self.char
-    }
-}
-
-impl Display for Plant {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.char)
-    }
-}
-
-#[derive(Clone, Copy, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Coordinates {
-    pub column: usize,
-    pub row: usize,
-}
-
-impl Coordinates {
-    pub const fn new(column: usize, row: usize) -> Self {
-        Self { column, row }
+    fn get_impl(grid: &[Box<[Plant]>], coordinates: Coordinates) -> Option<Plant> {
+        grid.get(coordinates.row)?.get(coordinates.column).copied()
     }
 
-    pub fn step(&self, direction: Direction) -> Result<Self, AddError> {
-        // This is nasty. There's got to be a better way!
-        fn add(unsigned: usize, signed: isize) -> Result<usize, AddError> {
-            let as_signed: isize = unsigned.try_into().map_err(|_| AddError::Overflow)?;
-            if as_signed.checked_add(signed).is_none_or(|v| v < 0) {
-                return Err(AddError::OutOfBounds);
-            }
+    pub fn get(&self, coordinates: Coordinates) -> Option<Plant> {
+        Self::get_impl(&self.plot, coordinates)
+    }
 
-            unsigned
-                .checked_add_signed(signed)
-                .ok_or(AddError::Overflow)
+    fn get_mut(&mut self, coordinates: Coordinates) -> Option<&mut Plant> {
+        self.plot
+            .get_mut(coordinates.row)?
+            .get_mut(coordinates.column)
+    }
+
+    fn null(&mut self, coordinates: Coordinates) {
+        if let Some(plant) = self.get_mut(coordinates) {
+            *plant = Plant::NULL;
         }
+    }
 
-        let (column, row) = match direction {
-            Direction::North => (0, -1),
-            Direction::South => (0, 1),
-            Direction::East => (1, 0),
-            Direction::West => (-1, 0),
+    pub fn visit(&mut self, coordinates: Coordinates) {
+        let plant = match self.get(coordinates) {
+            Some(plant) if plant != Plant::NULL => plant,
+            _ => return,
         };
 
-        Ok(Self {
-            column: add(self.column, column)?,
-            row: add(self.row, row)?,
-        })
+        self.regions.push((0, 0));
+        self.visit_impl(plant, coordinates);
     }
-}
 
-impl Display for Coordinates {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "({}, {})", self.column, self.row)
-    }
-}
+    /// Returns `true` if the plant at the `coordinates` matches `region_type`.
+    ///
+    /// Adds to [`Self::regions`].
+    fn visit_impl(&mut self, region_type: Plant, coordinates: Coordinates) -> bool {
+        // Escape if plant at `coordinates` is non-matching, otherwise mark it as visited
+        // and proceed.
+        match self.get(coordinates) {
+            // Matching and unvisited plant, continue.
+            Some(plant) if plant == region_type => (),
+            // Visited plant; return `true` if it was previously matching, but do not continue.
+            Some(plant) if plant == Plant::NULL => {
+                return Self::get_impl(self.original, coordinates)
+                    .is_some_and(|plant| plant == region_type);
+            }
+            // No plant or non-matching plant, return `false`.
+            _ => return false,
+        }
 
-#[derive(Clone, Copy, Hash, Debug, PartialEq, Eq)]
-pub enum AddError {
-    OutOfBounds,
-    Overflow,
-}
+        if let Some(plant) = self.get_mut(coordinates) {
+            *plant = Plant::new('!').unwrap();
+        }
+        self.null(coordinates);
 
-#[derive(Clone, Copy, Hash, Debug, PartialEq, Eq)]
-pub enum Direction {
-    North,
-    South,
-    East,
-    West,
-}
+        let non_matching_edges = Direction::all()
+            .iter()
+            .filter(|&&edge| {
+                let next_coordinates = match coordinates.step(edge) {
+                    Ok(next_coordinates) => next_coordinates,
+                    Err(AddError::OutOfBounds) => return true,
+                    Err(AddError::Overflow) => {
+                        panic!("overflowed while attempted to advance coordinates")
+                    }
+                };
 
-impl Direction {
-    pub const fn all() -> [Self; 4] {
-        [Self::North, Self::South, Self::East, Self::West]
+                !self.visit_impl(region_type, next_coordinates)
+            })
+            .count();
+
+        let region = self
+            .regions
+            .last_mut()
+            .expect("`Self::visit` includes a `push`");
+
+        *region = (
+            // Area
+            region.0 + 1,
+            // Perimeter
+            region.1 + non_matching_edges as Integer,
+        );
+
+        true
     }
 }
