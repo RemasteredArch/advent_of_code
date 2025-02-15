@@ -49,21 +49,23 @@ impl Plot {
     }
 
     pub fn fencing_quote(&self) -> Integer {
-        struct Grid {
-            grid: Box<[Box<[Plant]>]>,
+        struct Grid<'a> {
+            plot: Box<[Box<[Plant]>]>,
             regions: Vec<(Integer, Integer)>,
+            original: &'a [Box<[Plant]>],
         }
 
-        impl Grid {
+        impl Grid<'_> {
+            fn get_impl(grid: &[Box<[Plant]>], coordinates: Coordinates) -> Option<Plant> {
+                grid.get(coordinates.row)?.get(coordinates.column).copied()
+            }
+
             pub fn get(&self, coordinates: Coordinates) -> Option<Plant> {
-                self.grid
-                    .get(coordinates.row)?
-                    .get(coordinates.column)
-                    .copied()
+                Self::get_impl(&self.plot, coordinates)
             }
 
             fn get_mut(&mut self, coordinates: Coordinates) -> Option<&mut Plant> {
-                self.grid
+                self.plot
                     .get_mut(coordinates.row)?
                     .get_mut(coordinates.column)
             }
@@ -90,32 +92,26 @@ impl Plot {
             fn visit_impl(&mut self, region_type: Plant, coordinates: Coordinates) -> bool {
                 // Escape if plant at `coordinates` is non-matching, otherwise mark it as visited
                 // and proceed.
-                if self
-                    .get(coordinates)
-                    .is_none_or(|plant| plant != region_type)
-                {
-                    return false;
+                match self.get(coordinates) {
+                    // Matching and unvisited plant, continue.
+                    Some(plant) if plant == region_type => (),
+                    // Visited plant; return `true` if it was previously matching, but do not continue.
+                    Some(plant) if plant == Plant::NULL => {
+                        return Self::get_impl(self.original, coordinates)
+                            .is_some_and(|plant| plant == region_type);
+                    }
+                    // No plant or non-matching plant, return `false`.
+                    _ => return false,
+                }
+
+                if let Some(plant) = self.get_mut(coordinates) {
+                    *plant = Plant::new('!').unwrap();
                 }
                 self.null(coordinates);
 
                 let non_matching_edges = Direction::all()
                     .iter()
                     .filter(|&&edge| {
-                        eprintln!(
-                            "=> {region_type} @ {coordinates} + {edge:?} => {:?}{}",
-                            coordinates.step(edge),
-                            coordinates
-                                .step(edge)
-                                .ok()
-                                .and_then(|next_coordinates| self.get(next_coordinates))
-                                .map_or("", |next_plant| if next_plant == Plant::NULL {
-                                    ", (null)"
-                                } else if next_plant != region_type {
-                                    ", (non matching)"
-                                } else {
-                                    ""
-                                })
-                        );
                         let next_coordinates = match coordinates.step(edge) {
                             Ok(next_coordinates) => next_coordinates,
                             Err(AddError::OutOfBounds) => return true,
@@ -133,13 +129,6 @@ impl Plot {
                     .last_mut()
                     .expect("`Self::visit` includes a `push`");
 
-                eprintln!("{region_type} @ {coordinates}: area {} + 1 = {}, perimeter {} + {non_matching_edges} = {}",
-                    region.0,
-                    region.0 + 1,
-                    region.1,
-                    region.1 + non_matching_edges as Integer,
-                );
-
                 *region = (
                     // Area
                     region.0 + 1,
@@ -152,8 +141,9 @@ impl Plot {
         }
 
         let mut grid = Grid {
-            grid: self.grid.clone(),
+            plot: self.grid.clone(),
             regions: vec![],
+            original: &self.grid,
         };
 
         for row_index in 0..self.rows {
@@ -162,7 +152,7 @@ impl Plot {
             }
         }
 
-        dbg!(grid.regions)
+        grid.regions
             .iter()
             .map(|(area, perimeter)| area * perimeter)
             .sum()

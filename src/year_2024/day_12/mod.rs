@@ -26,12 +26,11 @@ OXOXO
 OOOOO";
 
 pub fn part_one() -> Integer {
-    let plot = Plot::parse(SIMPLE_EXAMPLE_INPUT).unwrap();
+    let plot = Plot::parse(INPUT).unwrap();
 
     plot.fencing_quote()
 }
 
 pub fn part_two() -> Integer {
-    return 0;
     todo!("implement part two")
 }
