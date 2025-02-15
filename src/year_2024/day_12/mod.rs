@@ -9,10 +9,7 @@ const EXAMPLE_INPUT: &str = "AAAA
 BBCD
 BBCC
 EEEC";
-
-pub fn part_one() -> Integer {
-    let plot = Plot::parse(
-        "RRRRIICCFF
+const COMPLEX_EXAMPLE_INPUT: &str = "RRRRIICCFF
 RRRRIICCCF
 VVRRRCCFFF
 VVRCCCJFFF
@@ -21,13 +18,20 @@ VVIVCCJJEE
 VVIIICJJEE
 MIIIIIJJEE
 MIIISIJEEE
-MMMISSJEEE",
-    )
-    .unwrap();
+MMMISSJEEE";
+const SIMPLE_EXAMPLE_INPUT: &str = "OOOOO
+OXOXO
+OOOOO
+OXOXO
+OOOOO";
+
+pub fn part_one() -> Integer {
+    let plot = Plot::parse(SIMPLE_EXAMPLE_INPUT).unwrap();
 
     plot.fencing_quote()
 }
 
 pub fn part_two() -> Integer {
+    return 0;
     todo!("implement part two")
 }

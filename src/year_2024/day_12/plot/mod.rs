@@ -88,17 +88,40 @@ impl Plot {
             ///
             /// Adds to [`Self::regions`].
             fn visit_impl(&mut self, region_type: Plant, coordinates: Coordinates) -> bool {
-                let plant = match self.get(coordinates) {
-                    Some(plant) if plant != region_type => plant,
-                    _ => return false,
-                };
+                // Escape if plant at `coordinates` is non-matching, otherwise mark it as visited
+                // and proceed.
+                if self
+                    .get(coordinates)
+                    .is_none_or(|plant| plant != region_type)
+                {
+                    return false;
+                }
                 self.null(coordinates);
 
                 let non_matching_edges = Direction::all()
                     .iter()
                     .filter(|&&edge| {
-                        let Ok(next_coordinates) = coordinates.step(edge) else {
-                            return true;
+                        eprintln!(
+                            "=> {region_type} @ {coordinates} + {edge:?} => {:?}{}",
+                            coordinates.step(edge),
+                            coordinates
+                                .step(edge)
+                                .ok()
+                                .and_then(|next_coordinates| self.get(next_coordinates))
+                                .map_or("", |next_plant| if next_plant == Plant::NULL {
+                                    ", (null)"
+                                } else if next_plant != region_type {
+                                    ", (non matching)"
+                                } else {
+                                    ""
+                                })
+                        );
+                        let next_coordinates = match coordinates.step(edge) {
+                            Ok(next_coordinates) => next_coordinates,
+                            Err(AddError::OutOfBounds) => return true,
+                            Err(AddError::Overflow) => {
+                                panic!("overflowed while attempted to advance coordinates")
+                            }
                         };
 
                         !self.visit_impl(region_type, next_coordinates)
@@ -109,6 +132,14 @@ impl Plot {
                     .regions
                     .last_mut()
                     .expect("`Self::visit` includes a `push`");
+
+                eprintln!("{region_type} @ {coordinates}: area {} + 1 = {}, perimeter {} + {non_matching_edges} = {}",
+                    region.0,
+                    region.0 + 1,
+                    region.1,
+                    region.1 + non_matching_edges as Integer,
+                );
+
                 *region = (
                     // Area
                     region.0 + 1,
@@ -131,7 +162,7 @@ impl Plot {
             }
         }
 
-        grid.regions
+        dbg!(grid.regions)
             .iter()
             .map(|(area, perimeter)| area * perimeter)
             .sum()
@@ -211,6 +242,12 @@ impl Coordinates {
             column: add(self.column, column)?,
             row: add(self.row, row)?,
         })
+    }
+}
+
+impl Display for Coordinates {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {})", self.column, self.row)
     }
 }
 
