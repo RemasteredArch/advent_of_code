@@ -19,6 +19,12 @@ VVIIICJJEE
 MIIIIIJJEE
 MIIISIJEEE
 MMMISSJEEE";
+const COMPLEX_EXAMPLE_INPUT_PART_TWO: &str = "AAAAAA
+AAABBA
+AAABBA
+ABBAAA
+ABBAAA
+AAAAAA";
 const SIMPLE_EXAMPLE_INPUT: &str = "OOOOO
 OXOXO
 OOOOO
@@ -32,5 +38,7 @@ pub fn part_one() -> Integer {
 }
 
 pub fn part_two() -> Integer {
-    todo!("implement part two")
+    let plot = Plot::parse(COMPLEX_EXAMPLE_INPUT_PART_TWO).unwrap();
+
+    plot.fencing_quote_bulk()
 }

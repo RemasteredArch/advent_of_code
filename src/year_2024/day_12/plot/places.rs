@@ -78,6 +78,83 @@ pub enum AddError {
     Overflow,
 }
 
+/// Represents a span between two [`Coordinates`].
+///
+/// It is guaranteed to share one location or run along one [`Axis`], such both [`Self::start`] and
+/// [`Self::end`] share the same [`Coordinates::column`], the same [`Coordinates::row`], or both.
+#[derive(Clone, Copy, Hash, Debug, PartialEq, Eq)]
+pub struct Span {
+    start: Coordinates,
+    end: Coordinates,
+}
+
+impl Span {
+    pub const fn new(start: Coordinates, end: Coordinates) -> Option<Self> {
+        if start.column != end.column && start.row != end.row {
+            return None;
+        }
+
+        Some(Self { start, end })
+    }
+
+    /// Measures the direction of an arrow pointing from [`Self::start`] to [`Self::end`]. Returns
+    /// [`None`] if [`Self::start`] and [`Self::end`] are at the same [`Coordinates`].
+    pub fn direction(&self) -> Option<Direction> {
+        match self.start.column.cmp(&self.end.column) {
+            std::cmp::Ordering::Less => return Some(Direction::West),
+            std::cmp::Ordering::Equal => (),
+            std::cmp::Ordering::Greater => return Some(Direction::East),
+        }
+
+        match self.start.row.cmp(&self.end.row) {
+            std::cmp::Ordering::Less => Some(Direction::South),
+            std::cmp::Ordering::Equal => None,
+            std::cmp::Ordering::Greater => Some(Direction::North),
+        }
+    }
+
+    /// Measures the axis that an arrow point from [`Self::start`] to [`Self::end`] lays along.
+    /// Returns [`None`] if [`Self::start`] and [`Self::end`] are at the same [`Coordinates`].
+    pub fn axis(&self) -> Option<Axis> {
+        if self.start == self.end {
+            return None;
+        }
+
+        if self.start.column == self.end.column {
+            return Some(Axis::Vertical);
+        }
+
+        Some(Axis::Horizontal)
+    }
+
+    pub fn is_within(&self, location: Coordinates) -> bool {
+        let Some(axis) = self.axis() else {
+            return self.start == location;
+        };
+
+        match axis {
+            Axis::Horizontal => (self.start.column..=self.end.column).contains(&location.column),
+            Axis::Vertical => (self.start.row..=self.end.row).contains(&location.row),
+        }
+    }
+
+    pub fn is_adjacent(&self, location: Coordinates) -> bool {
+        fn is_adjacent(lhs: Coordinates, rhs: Coordinates, direction: Direction) -> bool {
+            lhs.step(direction)
+                .is_ok_and(|next_coordinates| next_coordinates == rhs)
+        }
+
+        let Some(direction) = self.direction() else {
+            return Direction::all()
+                .iter()
+                .any(|&direction| is_adjacent(self.start, location, direction));
+        };
+
+        is_adjacent(self.start, location, direction.flip())
+            || is_adjacent(self.end, location, direction)
+    }
+}
+
 #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq)]
 pub enum Direction {
     North,
@@ -90,4 +167,35 @@ impl Direction {
     pub const fn all() -> [Self; 4] {
         [Self::North, Self::South, Self::East, Self::West]
     }
+
+    pub const fn axis(self) -> Axis {
+        match self {
+            Self::North | Self::South => Axis::Vertical,
+            Self::East | Self::West => Axis::Horizontal,
+        }
+    }
+
+    pub const fn flip(self) -> Self {
+        match self {
+            Self::North => Self::South,
+            Self::South => Self::North,
+            Self::East => Self::West,
+            Self::West => Self::East,
+        }
+    }
+}
+
+/// The horizontal or vertical axis that a [`Span`] runs along.
+#[derive(Clone, Copy, Hash, Debug, PartialEq, Eq)]
+pub enum Axis {
+    /// Runs along a row, such that [`Coordinates::column`] changes but [`Coordinates::row`] does
+    /// not.
+    ///
+    /// This is `x` in an `(x, y)` plane.
+    Horizontal,
+    /// Runs along a column, such that [`Coordinates::row`] changes but [`Coordinates::column`]
+    /// does not.
+    ///
+    /// This is `y` in an `(x, y)` plane.
+    Vertical,
 }
