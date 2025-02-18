@@ -139,8 +139,8 @@ impl Span {
         Some(Axis::Horizontal)
     }
 
-    /// Measures the direction of an arrow pointing from [`Self::start`] to [`Self::end`]. Returns
-    /// [`None`] if [`Self::start`] and [`Self::end`] are at the same [`Coordinates`].
+    /// Measures the [`Direction`] of an arrow pointing from [`Self::start`] to [`Self::end`].
+    /// Returns [`None`] if [`Self::start`] and [`Self::end`] are at the same [`Coordinates`].
     pub fn direction(&self) -> Option<Direction> {
         match self.start.column.cmp(&self.end.column) {
             std::cmp::Ordering::Less => return Some(Direction::West),
@@ -153,6 +153,14 @@ impl Span {
             std::cmp::Ordering::Equal => None,
             std::cmp::Ordering::Greater => Some(Direction::North),
         }
+    }
+
+    /// Measures the [`Direction`] of an arrow pointing from [`Self::start`] to [`Self::end`].
+    /// Returns [`Axis::direction_positive`] if [`Self::start`] and [`Self::end`] are at the same
+    /// [`Coordinates`] and thus do not have a [`Direction`] of their own.
+    pub fn direction_or_positive(&self) -> Direction {
+        self.direction()
+            .unwrap_or_else(|| self.axis().direction_positive())
     }
 
     /// Measures the axis that an arrow point from [`Self::start`] to [`Self::end`] lays along.
@@ -198,9 +206,9 @@ impl Span {
             return Some(());
         }
 
-        let direction = self
-            .direction()
-            .expect("`contains` should catch overlapping coordinates");
+        eprint!("[extending: {self}  =>  {location}]");
+
+        let direction = self.direction_or_positive();
         let from_start = Self::new(self.start, location, self.exposed_edge)?
             .direction()
             .expect("`contains` should catch overlapping coordinates");
@@ -211,6 +219,8 @@ impl Span {
             self.start = location;
         }
 
+        eprintln!("  =>  [{self}]");
+
         Some(())
     }
 
@@ -219,6 +229,47 @@ impl Span {
             start: self.end,
             end: self.start,
             exposed_edge: self.exposed_edge,
+        }
+    }
+
+    /// Returns `true` if either either end of `other` is adjacent to or contained within either
+    /// end of `self`.
+    pub fn is_adjacent_or_contained(&self, other: Self) -> bool {
+        let other = other.normalize_direction(other);
+
+        (self.is_adjacent(other.start) || self.contains(other.start))
+            || (self.is_adjacent(other.end) || self.contains(other.end))
+    }
+
+    /// Return a copy of `other`, flipped if necessary, such that it faces in the same
+    /// [`Direction`] as `self`. If `self` has no [`Direction`], `other` is flipped anyways.
+    ///
+    /// ```text
+    /// <---------O   other   O->
+    ///    o---->     self    o
+    ///
+    ///
+    /// O-------->    other   <-O
+    ///   o---->      self    o
+    /// ```
+    fn normalize_direction(&self, other: Self) -> Self {
+        if self.direction() == other.direction() {
+            other
+        } else {
+            other.flip()
+        }
+    }
+
+    /// Whether `self` sits on the same [`Axis`]; e.g., two horizontal spans sharing the same
+    /// [`Coordinates::row`].
+    pub fn linear(&self, other: Self) -> bool {
+        if self.axis() != other.axis() {
+            return false;
+        }
+
+        match self.axis() {
+            Axis::Horizontal => self.start.row == other.start.row,
+            Axis::Vertical => self.start.column == other.start.column,
         }
     }
 
@@ -248,32 +299,32 @@ impl Span {
             return None;
         }
 
+        if !self.linear(other) {
+            return None;
+        }
+
         if *self == other {
             return Some(());
         }
 
-        // ```text
-        // <---------O   other   O->
-        //    o---->     self    o
-        //
-        //
-        // O-------->    other   <-O
-        //   o---->      self    o
-        // ```
-        if self.direction() != other.direction() {
-            other = other.flip();
-        }
+        eprintln!("    + ({self}) != ({other})!");
+
+        self.is_adjacent_or_contained(other);
+
+        eprintln!("    + adjacent or contained!");
+
+        other = self.normalize_direction(other);
 
         // `direction = self.direction <or> other.direction <or> default`
         //
         // There has got to be a cleaner syntax for this.
-        let direction = self.direction().unwrap_or_else(|| {
-            other
-                .direction()
-                .unwrap_or_else(|| self.axis().directions()[0])
-        });
-
-        todo!("check for adjacency/overlap");
+        let direction = self
+            .direction()
+            .or_else(|| {
+                // Bad fallback?
+                other.direction()
+            })
+            .unwrap_or_else(|| self.axis().direction_positive());
 
         match further_along(self.start, other.start, direction.flip()) {
             Side::Left => (),
@@ -284,6 +335,8 @@ impl Span {
             Side::Left => (),
             Side::Right => self.end = other.end,
         }
+
+        eprintln!("    + fused! now {self}");
 
         Some(())
     }
@@ -302,6 +355,18 @@ impl Span {
         };
 
         greater - lesser + 1
+    }
+}
+
+impl Display for Span {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} -> {} (exposed edge {})",
+            self.start,
+            self.end,
+            self.exposed_edge()
+        )
     }
 }
 
@@ -335,6 +400,21 @@ impl Direction {
     }
 }
 
+impl Display for Direction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::North => "North",
+                Self::South => "South",
+                Self::East => "East",
+                Self::West => "West",
+            },
+        )
+    }
+}
+
 /// The horizontal or vertical axis that a [`Span`] runs along.
 #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq)]
 pub enum Axis {
@@ -360,8 +440,106 @@ impl Axis {
 
     pub const fn directions(self) -> [Direction; 2] {
         match self {
-            Self::Horizontal => [Direction::North, Direction::South],
-            Self::Vertical => [Direction::East, Direction::West],
+            Self::Vertical => [Direction::North, Direction::South],
+            Self::Horizontal => [Direction::East, Direction::West],
         }
+    }
+
+    /// Returns the [`Direction`] pointing towards positive values along [`Self`], where `(0, 0)`
+    /// positive `x` points to the right and positive `y` downwards:
+    ///
+    /// ```text
+    ///      -y
+    ///       ^
+    ///       |
+    /// -x <--+--> +x
+    ///       |
+    ///       v
+    ///      +y
+    /// ```
+    pub const fn direction_positive(self) -> Direction {
+        match self {
+            Self::Horizontal => Direction::East,
+            Self::Vertical => Direction::South,
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::{Coordinates, Direction, Span};
+
+    const fn coord(column: usize, row: usize) -> Coordinates {
+        Coordinates::new(column, row)
+    }
+
+    macro_rules! span {
+        ($start_column:expr, $start_row:expr; $end_column:expr, $end_row:expr) => {
+            Span::new(
+                Coordinates::new($start_column, $start_row),
+                Coordinates::new($end_column, $end_row),
+                Direction::South,
+            )
+            .expect("macro receives valid, hard-coded input")
+        };
+    }
+
+    #[test]
+    fn span_contains() {
+        assert!(!span!(2, 5; 2, 5).contains(coord(3, 5)));
+    }
+
+    #[test]
+    fn span_extend() {
+        macro_rules! extend {
+            [$((
+                $start_column:expr, $start_row:expr; $end_column:expr, $end_row:expr; $exposed_edge:ident;
+                $coordinates_column:expr, $coordinates_row:expr
+                => $expected_start_column:expr, $expected_start_row:expr; $expected_end_column:expr, $expected_end_row:expr; $expected_exposed_edge:ident
+            )),+ $(,)?] => {
+                $(assert_eq!(
+                    {
+                        let mut span = Span::new(
+                            Coordinates::new($start_column, $start_row),
+                            Coordinates::new($end_column, $end_row),
+                            Direction::$exposed_edge,
+                        )
+                        .expect("macro receives valid, hard-coded input");
+
+                        span
+                            .extend_to(Coordinates::new($coordinates_column, $coordinates_row))
+                            .expect("macro receives valid, hard-coded input");
+
+                        span
+                    },
+                    Span::new(
+                        Coordinates::new($expected_start_column, $expected_start_row),
+                        Coordinates::new($expected_end_column, $expected_end_row),
+                        Direction::$expected_exposed_edge,
+                    )
+                    .expect("macro receives valid, hard-coded input")
+                ));+
+            };
+        }
+
+        extend![
+            (5, 2; 5, 2; East;   5, 3  =>  5, 2; 5, 3; East),
+            (5, 0; 5, 0; North;  4, 0  =>  5, 0; 4, 0; North),
+            (2, 1; 2, 1; East;   2, 2  =>  2, 1; 2, 2; East),
+            (1, 5; 1, 5; South;  0, 5  =>  1, 5; 0, 5; South),
+            (5, 4; 5, 4; East;   5, 5  =>  5, 4; 5, 5; East),
+            (0, 1; 0, 1; West;   0, 0  =>  0, 0; 0, 1; West),
+            (2, 0; 2, 0; North;  1, 0  =>  2, 0; 1, 0; North),
+            (2, 0; 1, 0; North;  3, 0  =>  3, 0; 1, 0; North),
+            (4, 0; 4, 0; South;  3, 0  =>  4, 0; 3, 0; South),
+            (5, 2; 5, 2; West;   5, 1  =>  5, 1; 5, 2; West),
+            (2, 2; 2, 2; South;  1, 2  =>  2, 2; 1, 2; South),
+            (5, 5; 5, 5; South;  4, 5  =>  5, 5; 4, 5; South),
+            (4, 3; 4, 3; North;  3, 3  =>  4, 3; 3, 3; North),
+            (3, 4; 3, 4; West;   3, 3  =>  3, 3; 3, 4; West),
+            (1, 5; 1, 5; North;  2, 5  =>  2, 5; 1, 5; North),
+            (1, 5; 0, 5; South;  2, 5  =>  2, 5; 0, 5; South),
+            (2, 5; 0, 5; South;  3, 5  =>  3, 5; 0, 5; South),
+        ];
     }
 }

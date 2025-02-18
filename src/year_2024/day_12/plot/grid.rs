@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Write};
 
 use crate::Integer;
 
@@ -213,19 +213,38 @@ impl<'a> BulkGrid<'a> {
     /// Transforms [`Self`] into a vector holding the area and number of edges for every region.
     pub fn into_regions(self) -> Vec<(Integer, Integer)> {
         fn fuse(spans: &mut Vec<Span>) -> bool {
+            eprintln!("- start fuse");
             let mut fused = false;
 
-            for i in spans.len()..0 {
+            for i in (0..spans.len()).rev() {
                 let popped_span = spans[i];
+
+                eprint!("  - popped {i}: {popped_span}\n{}", {
+                    let mut out = String::new();
+                    for (i, span) in spans.iter().enumerate() {
+                        writeln!(out, "    | {i}  {span}").unwrap();
+                    }
+                    out
+                });
 
                 if spans
                     .iter_mut()
+                    .take(i) // Take until the `span` before `popped_span`.
                     .any(|span| span.join(popped_span).is_some())
                 {
+                    eprintln!("    fused");
                     spans.remove(i);
                     fused = true;
                 }
             }
+
+            eprint!("  len {}:\n{}", spans.len(), {
+                let mut out = String::new();
+                for span in spans {
+                    writeln!(out, "  | {span}").unwrap();
+                }
+                out
+            });
 
             fused
         }
@@ -238,7 +257,7 @@ impl<'a> BulkGrid<'a> {
             for (coordinates, exposed_edges) in exposed_locations {
                 for edge in exposed_edges {
                     let was_inserted = spans.iter_mut().any(|span| {
-                        if span.exposed_edge() == edge {
+                        if span.exposed_edge() != edge {
                             return false;
                         }
 
@@ -251,9 +270,26 @@ impl<'a> BulkGrid<'a> {
                 }
             }
 
-            while fuse(&mut spans) {}
+            eprint!("\n\n\narea: {area}\n{}", {
+                let mut out = String::new();
+                for span in &spans {
+                    writeln!(out, "  {span}").unwrap();
+                }
+                out
+            });
+            while fuse(&mut spans) {
+                eprintln!("fused once");
+            }
 
-            let perimeter = spans.iter().map(|span| span.len() as Integer).sum();
+            let perimeter = spans.len() as Integer;
+
+            eprintln!("fused to {} sides:\n{}", perimeter, {
+                let mut out = String::new();
+                for span in &spans {
+                    writeln!(out, "  {span}").unwrap();
+                }
+                out
+            });
 
             regions.push((area, perimeter));
         }
