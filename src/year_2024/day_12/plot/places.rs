@@ -78,23 +78,65 @@ pub enum AddError {
     Overflow,
 }
 
-/// Represents a span between two [`Coordinates`].
+/// Represents a span between two [`Coordinates`], with one exposed edge ([`Direction`]).
 ///
 /// It is guaranteed to share one location or run along one [`Axis`], such both [`Self::start`] and
 /// [`Self::end`] share the same [`Coordinates::column`], the same [`Coordinates::row`], or both.
+/// The [`Axis`] runs perpendicular to [`Self::exposed_edge`].
 #[derive(Clone, Copy, Hash, Debug, PartialEq, Eq)]
 pub struct Span {
     start: Coordinates,
     end: Coordinates,
+    exposed_edge: Direction,
 }
 
 impl Span {
-    pub const fn new(start: Coordinates, end: Coordinates) -> Option<Self> {
-        if start.column != end.column && start.row != end.row {
+    pub fn new(start: Coordinates, end: Coordinates, exposed_edge: Direction) -> Option<Self> {
+        if Self::is_diagonal(start, end) {
             return None;
         }
 
-        Some(Self { start, end })
+        // Verify that the axis the span runs along, if it runs a distance, is perpendicular to the
+        // exposed edge.
+        if Self::guess_axis(start, end).is_some_and(|axis| axis == exposed_edge.axis()) {
+            return None;
+        }
+
+        Some(Self {
+            start,
+            end,
+            exposed_edge,
+        })
+    }
+
+    /// Create a new [`Self`] between the same two points.
+    pub const fn new_no_run(location: Coordinates, exposed_edge: Direction) -> Self {
+        Self {
+            start: location,
+            end: location,
+            exposed_edge,
+        }
+    }
+
+    /// Verify that two points run diagonally, not along an [`Axis`].
+    const fn is_diagonal(start: Coordinates, end: Coordinates) -> bool {
+        start.column != end.column && start.row != end.row
+    }
+
+    /// Return the axis that two [`Coordinates`] run along, or return [`None`] if they are
+    /// equal.
+    ///
+    /// Assumes that the [`Coordinates`] *do* run along an axis, not diagonally.
+    fn guess_axis(start: Coordinates, end: Coordinates) -> Option<Axis> {
+        if start == end {
+            return None;
+        }
+
+        if start.column == end.column {
+            return Some(Axis::Vertical);
+        }
+
+        Some(Axis::Horizontal)
     }
 
     /// Measures the direction of an arrow pointing from [`Self::start`] to [`Self::end`]. Returns
@@ -114,25 +156,16 @@ impl Span {
     }
 
     /// Measures the axis that an arrow point from [`Self::start`] to [`Self::end`] lays along.
-    /// Returns [`None`] if [`Self::start`] and [`Self::end`] are at the same [`Coordinates`].
-    pub fn axis(&self) -> Option<Axis> {
-        if self.start == self.end {
-            return None;
-        }
-
-        if self.start.column == self.end.column {
-            return Some(Axis::Vertical);
-        }
-
-        Some(Axis::Horizontal)
+    pub const fn axis(&self) -> Axis {
+        self.exposed_edge.axis().rotate()
     }
 
-    pub fn is_within(&self, location: Coordinates) -> bool {
-        let Some(axis) = self.axis() else {
-            return self.start == location;
-        };
+    pub const fn exposed_edge(&self) -> Direction {
+        self.exposed_edge
+    }
 
-        match axis {
+    pub fn contains(&self, location: Coordinates) -> bool {
+        match self.axis() {
             Axis::Horizontal => (self.start.column..=self.end.column).contains(&location.column),
             Axis::Vertical => (self.start.row..=self.end.row).contains(&location.row),
         }
@@ -144,14 +177,131 @@ impl Span {
                 .is_ok_and(|next_coordinates| next_coordinates == rhs)
         }
 
+        self.axis()
+            .directions()
+            .iter()
+            .any(|&direction| is_adjacent(self.start, location, direction))
+    }
+
+    #[must_use]
+    pub fn append(&mut self, location: Coordinates) -> Option<()> {
+        if !self.contains(location) && !self.is_adjacent(location) {
+            return None;
+        }
+
+        self.extend_to(location)
+    }
+
+    #[must_use]
+    pub fn extend_to(&mut self, location: Coordinates) -> Option<()> {
+        if self.contains(location) {
+            return Some(());
+        }
+
+        let direction = self
+            .direction()
+            .expect("`contains` should catch overlapping coordinates");
+        let from_start = Self::new(self.start, location, self.exposed_edge)?
+            .direction()
+            .expect("`contains` should catch overlapping coordinates");
+
+        if from_start == direction {
+            self.end = location;
+        } else {
+            self.start = location;
+        }
+
+        Some(())
+    }
+
+    pub const fn flip(&self) -> Self {
+        Self {
+            start: self.end,
+            end: self.start,
+            exposed_edge: self.exposed_edge,
+        }
+    }
+
+    #[must_use]
+    pub fn join(&mut self, mut other: Self) -> Option<()> {
+        enum Side {
+            Left,
+            Right,
+        }
+
+        const fn further_along(lhs: Coordinates, rhs: Coordinates, direction: Direction) -> Side {
+            let is_lhs = match direction {
+                Direction::North => lhs.row < rhs.row,
+                Direction::South => lhs.row > rhs.row,
+                Direction::East => lhs.column > rhs.column,
+                Direction::West => lhs.column < rhs.column,
+            };
+
+            if is_lhs {
+                Side::Left
+            } else {
+                Side::Right
+            }
+        }
+
+        if self.exposed_edge() != other.exposed_edge() {
+            return None;
+        }
+
+        if *self == other {
+            return Some(());
+        }
+
+        // ```text
+        // <---------O   other   O->
+        //    o---->     self    o
+        //
+        //
+        // O-------->    other   <-O
+        //   o---->      self    o
+        // ```
+        if self.direction() != other.direction() {
+            other = other.flip();
+        }
+
+        // `direction = self.direction <or> other.direction <or> default`
+        //
+        // There has got to be a cleaner syntax for this.
+        let direction = self.direction().unwrap_or_else(|| {
+            other
+                .direction()
+                .unwrap_or_else(|| self.axis().directions()[0])
+        });
+
+        todo!("check for adjacency/overlap");
+
+        match further_along(self.start, other.start, direction.flip()) {
+            Side::Left => (),
+            Side::Right => self.start = other.start,
+        }
+
+        match further_along(self.end, other.end, direction) {
+            Side::Left => (),
+            Side::Right => self.end = other.end,
+        }
+
+        Some(())
+    }
+
+    pub fn len(&self) -> usize {
         let Some(direction) = self.direction() else {
-            return Direction::all()
-                .iter()
-                .any(|&direction| is_adjacent(self.start, location, direction));
+            // Start and end at in the same location, i.e., it only spans one coordinate.
+            return 1;
         };
 
-        is_adjacent(self.start, location, direction.flip())
-            || is_adjacent(self.end, location, direction)
+        let (greater, lesser) = match direction {
+            Direction::North => (self.start.row, self.end.row),
+            Direction::South => (self.end.row, self.start.row),
+            Direction::East => (self.end.column, self.start.column),
+            Direction::West => (self.start.column, self.end.column),
+        };
+
+        greater - lesser + 1
     }
 }
 
@@ -198,4 +348,20 @@ pub enum Axis {
     ///
     /// This is `y` in an `(x, y)` plane.
     Vertical,
+}
+
+impl Axis {
+    pub const fn rotate(self) -> Self {
+        match self {
+            Self::Horizontal => Self::Vertical,
+            Self::Vertical => Self::Horizontal,
+        }
+    }
+
+    pub const fn directions(self) -> [Direction; 2] {
+        match self {
+            Self::Horizontal => [Direction::North, Direction::South],
+            Self::Vertical => [Direction::East, Direction::West],
+        }
+    }
 }

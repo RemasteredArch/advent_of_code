@@ -78,7 +78,7 @@ impl Plot {
             }
         }
 
-        grid.into_regions()
+        dbg!(grid.into_regions())
             .iter()
             .map(|(area, edges)| area * edges)
             .sum()

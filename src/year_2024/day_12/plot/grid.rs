@@ -2,8 +2,9 @@ use std::collections::HashMap;
 
 use crate::Integer;
 
-use super::places::{AddError, Coordinates, Direction, Plant};
+use super::places::{AddError, Coordinates, Direction, Plant, Span};
 
+#[derive(Clone, Hash, Debug, PartialEq, Eq)]
 struct Grid<'a> {
     plot: Box<[Box<[Plant]>]>,
     original: &'a [Box<[Plant]>],
@@ -38,6 +39,7 @@ impl<'a> Grid<'a> {
     }
 }
 
+#[derive(Clone, Hash, Debug, PartialEq, Eq)]
 pub struct StandardGrid<'a> {
     grid: Grid<'a>,
     regions: Vec<(Integer, Integer)>,
@@ -116,6 +118,7 @@ impl<'a> StandardGrid<'a> {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BulkGrid<'a> {
     grid: Grid<'a>,
     /// Stores a list of contiguous sections of the same plant.
@@ -187,6 +190,10 @@ impl<'a> BulkGrid<'a> {
         // Does this actually set it?
         region.0 += 1;
 
+        if non_matching_edges.is_empty() {
+            return true;
+        }
+
         match region.1.get_mut(&coordinates) {
             Some(edges) => {
                 for edge in non_matching_edges {
@@ -205,6 +212,52 @@ impl<'a> BulkGrid<'a> {
 
     /// Transforms [`Self`] into a vector holding the area and number of edges for every region.
     pub fn into_regions(self) -> Vec<(Integer, Integer)> {
-        todo!()
+        fn fuse(spans: &mut Vec<Span>) -> bool {
+            let mut fused = false;
+
+            for i in spans.len()..0 {
+                let popped_span = spans[i];
+
+                if spans
+                    .iter_mut()
+                    .any(|span| span.join(popped_span).is_some())
+                {
+                    spans.remove(i);
+                    fused = true;
+                }
+            }
+
+            fused
+        }
+
+        let mut regions: Vec<(Integer, Integer)> = vec![];
+
+        for (area, exposed_locations) in self.regions {
+            let mut spans = Vec::<Span>::new();
+
+            for (coordinates, exposed_edges) in exposed_locations {
+                for edge in exposed_edges {
+                    let was_inserted = spans.iter_mut().any(|span| {
+                        if span.exposed_edge() == edge {
+                            return false;
+                        }
+
+                        span.append(coordinates).is_some()
+                    });
+
+                    if !was_inserted {
+                        spans.push(Span::new_no_run(coordinates, edge));
+                    }
+                }
+            }
+
+            while fuse(&mut spans) {}
+
+            let perimeter = spans.iter().map(|span| span.len() as Integer).sum();
+
+            regions.push((area, perimeter));
+        }
+
+        regions
     }
 }
