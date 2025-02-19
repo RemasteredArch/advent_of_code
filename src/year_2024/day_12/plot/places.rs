@@ -185,12 +185,40 @@ impl Span {
                 .is_ok_and(|next_coordinates| next_coordinates == rhs)
         }
 
-        self.axis()
-            .directions()
-            .iter()
-            .any(|&direction| is_adjacent(self.start, location, direction))
+        self.axis().directions().iter().any(|&direction| {
+            is_adjacent(self.start, location, direction)
+                || is_adjacent(self.end, location, direction)
+        })
     }
 
+    /// If `location` is between, at, or immediately next to [`Self::start`] and [`Self::end`],
+    /// return [`Some`]. If location is next to either end, but not between, then the closest edge
+    /// will be moved to `location`, growing [`Self`].
+    ///
+    /// Returns [`None`] if `location` is more than one tile away from either end or not along the
+    /// same [`Axis`].
+    ///
+    /// ```text
+    /// O----> `self`
+    ///    o   `location`
+    /// O----> `self` after `append`
+    ///
+    ///
+    /// O--->  `self`
+    ///      o `location`
+    /// O----> `self` after `append`
+    ///
+    ///
+    ///  O---> `self`
+    /// o      `location`
+    /// O----> `self` after `append`
+    ///
+    ///
+    /// O-->   `self`
+    ///      o `location`
+    /// O-->   `self` after `append`
+    ///        (unchanged, returned `None`)
+    /// ```
     #[must_use]
     pub fn append(&mut self, location: Coordinates) -> Option<()> {
         if !self.contains(location) && !self.is_adjacent(location) {
@@ -200,8 +228,17 @@ impl Span {
         self.extend_to(location)
     }
 
+    /// If `location` same [`Axis`] as [`Self`], return [`Some`]. If `location` is not at or
+    /// between [`Self::start`] or [`Self::end`], the closest end will be moved to `location`,
+    /// growing [`Self`].
+    ///
+    /// Returns [`None`] if `location` is not along the same [`Axis`].
     #[must_use]
     pub fn extend_to(&mut self, location: Coordinates) -> Option<()> {
+        if !self.along_axis(location) {
+            return None;
+        }
+
         if self.contains(location) {
             return Some(());
         }
@@ -222,6 +259,13 @@ impl Span {
         eprintln!("  =>  [{self}]");
 
         Some(())
+    }
+
+    pub const fn along_axis(&self, location: Coordinates) -> bool {
+        match self.axis() {
+            Axis::Horizontal => self.start.row == location.row,
+            Axis::Vertical => self.start.column == location.column,
+        }
     }
 
     pub const fn flip(&self) -> Self {

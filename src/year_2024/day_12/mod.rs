@@ -19,6 +19,7 @@ VVIIICJJEE
 MIIIIIJJEE
 MIIISIJEEE
 MMMISSJEEE";
+/// Expects [`part_two`] to return `368`.
 const COMPLEX_EXAMPLE_INPUT_PART_TWO: &str = "AAAAAA
 AAABBA
 AAABBA
@@ -30,6 +31,17 @@ OXOXO
 OOOOO
 OXOXO
 OOOOO";
+/// Expects [`part_one`] to return `1930` and [`part_two`] to return `1206`.
+const LARGE_EXAMPLE_INPUT: &str = "RRRRIICCFF
+RRRRIICCCF
+VVRRRCCFFF
+VVRCCCJFFF
+VVVVCJJCFE
+VVIVCCJJEE
+VVIIICJJEE
+MIIIIIJJEE
+MIIISIJEEE
+MMMISSJEEE";
 
 pub fn part_one() -> Integer {
     let plot = Plot::parse(INPUT).unwrap();
@@ -38,7 +50,7 @@ pub fn part_one() -> Integer {
 }
 
 pub fn part_two() -> Integer {
-    let plot = Plot::parse(COMPLEX_EXAMPLE_INPUT_PART_TWO).unwrap();
+    let plot = Plot::parse(LARGE_EXAMPLE_INPUT).unwrap();
 
     plot.fencing_quote_bulk()
 }
