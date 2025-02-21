@@ -1,5 +1,7 @@
 mod grid;
 mod places;
+#[cfg(test)]
+mod test;
 
 use grid::{BulkGrid, StandardGrid};
 use places::{Coordinates, Plant};
