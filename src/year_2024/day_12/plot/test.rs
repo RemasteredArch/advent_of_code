@@ -1,4 +1,10 @@
-use super::places::{Coordinates, Direction, Span};
+use super::{
+    super::LARGE_EXAMPLE_INPUT,
+    places::{Coordinates, Direction, Span},
+    Plot,
+};
+
+use crate::Integer;
 
 const fn coord(column: usize, row: usize) -> Coordinates {
     Coordinates::new(column, row)
@@ -72,4 +78,90 @@ fn span_extend() {
         (1, 5; 0, 5; South;  2, 5  =>  2, 5; 0, 5; South),
         (2, 5; 0, 5; South;  3, 5  =>  3, 5; 0, 5; South),
     ];
+}
+
+#[test]
+fn bulk_grid_regions() {
+    fn sort(
+        lhs: &(Integer, Integer, Integer),
+        rhs: &(Integer, Integer, Integer),
+    ) -> std::cmp::Ordering {
+        macro_rules! cmp {
+            ($lhs:expr, $rhs:expr) => {
+                let cmp = $lhs.cmp($rhs);
+
+                if matches!(cmp, std::cmp::Ordering::Less | std::cmp::Ordering::Greater) {
+                    return cmp;
+                }
+            };
+        }
+
+        cmp!(lhs.0, &rhs.0);
+        cmp!(lhs.1, &rhs.1);
+        rhs.2.cmp(&rhs.2)
+    }
+
+    const EXPECTED_REGIONS: &[(char, Integer, Integer, Integer)] = &[
+        ('R', 12, 10, 120), // A region of plant `'R'` with area `2` and `10` sides (costing `120`).
+        ('I', 4, 4, 16),    // A region of plant `'I'` with area `4` and `4` sides (costing `16`).
+        ('C', 14, 22, 308), // A region of plant `'C'` with area `4` and `22` sides (costing `308`).
+        ('F', 10, 12, 120), // A region of plant `'F'` with area `0` and `12` sides (costing `120`).
+        ('V', 13, 10, 130), // A region of plant `'V'` with area `3` and `10` sides (costing `130`).
+        ('J', 11, 12, 132), // A region of plant `'J'` with area `1` and `12` sides (costing `132`).
+        ('C', 1, 4, 4),     // A region of plant `'C'` with area `1` and `4` sides (costing `4`).
+        ('E', 13, 8, 104),  // A region of plant `'E'` with area `3` and `8` sides (costing `104`).
+        ('I', 14, 16, 224), // A region of plant `'I'` with area `4` and `16` sides (costing `224`).
+        ('M', 5, 6, 30),    // A region of plant `'M'` with area `5` and `6` sides (costing `30`).
+        ('S', 3, 6, 18),    // A region of plant `'S'` with area `3` and `6` sides (costing `18`).
+    ];
+
+    let plot = Plot::parse(LARGE_EXAMPLE_INPUT).unwrap();
+
+    let mut grid = super::grid::BulkGrid::new(&plot.grid);
+
+    for row_index in 0..plot.rows {
+        for column_index in 0..plot.columns {
+            grid.visit(Coordinates::new(column_index, row_index));
+        }
+    }
+
+    let mut regions = grid
+        .into_regions()
+        .into_iter()
+        .map(|(area, edges)| (area, edges, area * edges))
+        .collect::<Vec<_>>();
+    regions.sort_by(sort);
+
+    let mut expected = EXPECTED_REGIONS.to_vec();
+    expected.sort_by(|lhs, rhs| sort(&(lhs.1, lhs.2, lhs.3), &(rhs.1, rhs.2, rhs.3)));
+
+    eprintln!("Diff:");
+    eprintln!("    Actual:          Expected:");
+    for i in 0..regions.len().max(expected.len()) {
+        let fmt = |(area, sides, cost): (Integer, Integer, Integer)| {
+            format!("({area:2}, {sides:2}, {cost:3})",)
+        };
+
+        let actual = regions[i];
+        let expected = expected[i];
+        let plant = expected.0;
+        let expected = (expected.1, expected.2, expected.3);
+
+        match actual.cmp(&expected) {
+            std::cmp::Ordering::Less | std::cmp::Ordering::Greater => {
+                eprintln!("! {plant} {} != {}", fmt(actual), fmt(expected));
+            }
+            std::cmp::Ordering::Equal => {
+                eprintln!("  {plant} {} == {}", fmt(actual), fmt(expected));
+            }
+        };
+    }
+
+    assert_eq!(
+        regions,
+        expected
+            .into_iter()
+            .map(|(_, area, edges, cost)| (area, edges, cost))
+            .collect::<Vec<_>>()
+    );
 }
