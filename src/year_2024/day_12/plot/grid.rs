@@ -136,6 +136,18 @@ impl<'a> BulkGrid<'a> {
         }
     }
 
+    /// Directly constructs [`Self`] with a pre-defined list of regions. Strictly for the purposes
+    /// of simpler test cases.
+    #[cfg(test)]
+    pub unsafe fn with_regions(
+        regions: Vec<(Integer, HashMap<Coordinates, Vec<Direction>>)>,
+    ) -> Self {
+        Self {
+            grid: Grid::new(&[]),
+            regions,
+        }
+    }
+
     pub fn visit(&mut self, coordinates: Coordinates) {
         let plant = match self.grid.get(coordinates) {
             Some(plant) if plant != Plant::NULL => plant,

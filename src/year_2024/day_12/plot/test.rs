@@ -1,5 +1,8 @@
+use std::collections::HashMap;
+
 use super::{
     super::LARGE_EXAMPLE_INPUT,
+    grid::BulkGrid,
     places::{Coordinates, Direction, Span},
     Plot,
 };
@@ -78,6 +81,28 @@ fn span_extend() {
         (1, 5; 0, 5; South;  2, 5  =>  2, 5; 0, 5; South),
         (2, 5; 0, 5; South;  3, 5  =>  3, 5; 0, 5; South),
     ];
+}
+
+#[test]
+fn span_adjacency() {
+    let span_8_0 = Span::new_no_run(coord(8, 0), Direction::West);
+    let span_8_4 = Span::new_no_run(coord(8, 4), Direction::West);
+
+    assert!(!span_8_0.is_adjacent(coord(8, 4)));
+    assert!(!span_8_0.is_adjacent_or_contained(span_8_4));
+    assert!(span_8_0.clone().join(span_8_4).is_none());
+
+    let grid = unsafe {
+        BulkGrid::with_regions(vec![(
+            10,
+            // Two values that should *not* join.
+            HashMap::from([
+                (coord(8, 0), vec![Direction::West]),
+                (coord(8, 4), vec![Direction::West]),
+            ]),
+        )])
+    };
+    assert_eq!(grid.into_regions(), vec![(10, 2)]);
 }
 
 #[test]

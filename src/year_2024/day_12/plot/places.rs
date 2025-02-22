@@ -317,6 +317,7 @@ impl Span {
         }
     }
 
+    /// Join two adjacent/contained instances of [`Self`].
     #[must_use]
     pub fn join(&mut self, mut other: Self) -> Option<()> {
         enum Side {
@@ -353,7 +354,9 @@ impl Span {
 
         eprintln!("    + ({self}) != ({other})!");
 
-        self.is_adjacent_or_contained(other);
+        if !self.is_adjacent_or_contained(other) {
+            return None;
+        }
 
         eprintln!("    + adjacent or contained!");
 
