@@ -243,8 +243,6 @@ impl Span {
             return Some(());
         }
 
-        eprint!("[extending: {self}  =>  {location}]");
-
         let direction = self.direction_or_positive();
         let from_start = Self::new(self.start, location, self.exposed_edge)?
             .direction()
@@ -255,8 +253,6 @@ impl Span {
         } else {
             self.start = location;
         }
-
-        eprintln!("  =>  [{self}]");
 
         Some(())
     }
@@ -352,13 +348,9 @@ impl Span {
             return Some(());
         }
 
-        eprintln!("    + ({self}) != ({other})!");
-
         if !self.is_adjacent_or_contained(other) {
             return None;
         }
-
-        eprintln!("    + adjacent or contained!");
 
         other = self.normalize_direction(other);
 
@@ -380,8 +372,6 @@ impl Span {
             Side::Left => (),
             Side::Right => self.end = other.end,
         }
-
-        eprintln!("    + fused! now {self}");
 
         Some(())
     }
