@@ -63,23 +63,23 @@ fn span_extend() {
         }
 
     extend![
-        (5, 2; 5, 2; East;   5, 3  =>  5, 2; 5, 3; East),
-        (5, 0; 5, 0; North;  4, 0  =>  5, 0; 4, 0; North),
-        (2, 1; 2, 1; East;   2, 2  =>  2, 1; 2, 2; East),
-        (1, 5; 1, 5; South;  0, 5  =>  1, 5; 0, 5; South),
-        (5, 4; 5, 4; East;   5, 5  =>  5, 4; 5, 5; East),
-        (0, 1; 0, 1; West;   0, 0  =>  0, 0; 0, 1; West),
-        (2, 0; 2, 0; North;  1, 0  =>  2, 0; 1, 0; North),
+        (5, 0; 5, 0; North;  4, 0  =>  4, 0; 5, 0; North),
+        (2, 0; 2, 0; North;  1, 0  =>  1, 0; 2, 0; North),
         (2, 0; 1, 0; North;  3, 0  =>  3, 0; 1, 0; North),
-        (4, 0; 4, 0; South;  3, 0  =>  4, 0; 3, 0; South),
-        (5, 2; 5, 2; West;   5, 1  =>  5, 1; 5, 2; West),
-        (2, 2; 2, 2; South;  1, 2  =>  2, 2; 1, 2; South),
-        (5, 5; 5, 5; South;  4, 5  =>  5, 5; 4, 5; South),
-        (4, 3; 4, 3; North;  3, 3  =>  4, 3; 3, 3; North),
-        (3, 4; 3, 4; West;   3, 3  =>  3, 3; 3, 4; West),
-        (1, 5; 1, 5; North;  2, 5  =>  2, 5; 1, 5; North),
+        (4, 3; 4, 3; North;  3, 3  =>  3, 3; 4, 3; North),
+        (1, 5; 1, 5; North;  2, 5  =>  1, 5; 2, 5; North),
+        (1, 5; 1, 5; South;  0, 5  =>  0, 5; 1, 5; South),
+        (4, 0; 4, 0; South;  3, 0  =>  3, 0; 4, 0; South),
+        (2, 2; 2, 2; South;  1, 2  =>  1, 2; 2, 2; South),
+        (5, 5; 5, 5; South;  4, 5  =>  4, 5; 5, 5; South),
         (1, 5; 0, 5; South;  2, 5  =>  2, 5; 0, 5; South),
         (2, 5; 0, 5; South;  3, 5  =>  3, 5; 0, 5; South),
+        (5, 2; 5, 2; East;   5, 3  =>  5, 2; 5, 3; East),
+        (2, 1; 2, 1; East;   2, 2  =>  2, 1; 2, 2; East),
+        (5, 4; 5, 4; East;   5, 5  =>  5, 4; 5, 5; East),
+        (0, 1; 0, 1; West;   0, 0  =>  0, 0; 0, 1; West),
+        (5, 2; 5, 2; West;   5, 1  =>  5, 1; 5, 2; West),
+        (3, 4; 3, 4; West;   3, 3  =>  3, 3; 3, 4; West),
     ];
 }
 
@@ -103,6 +103,18 @@ fn span_adjacency() {
         )])
     };
     assert_eq!(grid.into_regions(), vec![(10, 2)]);
+}
+
+#[test]
+fn span_fuse() {
+    let mut span_4_1 = Span::new(coord(4, 0), coord(1, 0), Direction::North).unwrap();
+    let span_0_1 = Span::new(coord(0, 0), coord(1, 0), Direction::North).unwrap();
+
+    let span_4_0 = Span::new(coord(4, 0), coord(0, 0), Direction::North).unwrap();
+
+    span_4_1.join(span_0_1).unwrap();
+
+    assert_eq!(span_4_1, span_4_0);
 }
 
 #[test]
@@ -189,4 +201,38 @@ fn bulk_grid_regions() {
             .map(|(_, area, edges, cost)| (area, edges, cost))
             .collect::<Vec<_>>()
     );
+}
+
+#[test]
+fn part_one() {
+    use super::super::{EXAMPLE_INPUT, LARGE_EXAMPLE_INPUT, SIMPLE_EXAMPLE_INPUT};
+
+    fn part_one(input_expected: &[(&str, Integer)]) {
+        for (input, expected) in input_expected {
+            assert_eq!(Plot::parse(input).unwrap().fencing_quote(), *expected);
+        }
+    }
+
+    part_one(&[
+        (EXAMPLE_INPUT, 140),
+        (LARGE_EXAMPLE_INPUT, 1930),
+        (SIMPLE_EXAMPLE_INPUT, 772),
+    ]);
+}
+
+#[test]
+fn part_two() {
+    use super::super::{EXAMPLE_INPUT, LARGE_EXAMPLE_INPUT, SIMPLE_EXAMPLE_INPUT_PART_TWO};
+
+    fn part_two(input_expected: &[(&str, Integer)]) {
+        for (input, expected) in input_expected {
+            assert_eq!(Plot::parse(input).unwrap().fencing_quote_bulk(), *expected);
+        }
+    }
+
+    part_two(&[
+        (EXAMPLE_INPUT, 80),
+        (LARGE_EXAMPLE_INPUT, 1206),
+        (SIMPLE_EXAMPLE_INPUT_PART_TWO, 368),
+    ]);
 }

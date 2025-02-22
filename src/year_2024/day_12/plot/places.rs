@@ -143,9 +143,9 @@ impl Span {
     /// Returns [`None`] if [`Self::start`] and [`Self::end`] are at the same [`Coordinates`].
     pub fn direction(&self) -> Option<Direction> {
         match self.start.column.cmp(&self.end.column) {
-            std::cmp::Ordering::Less => return Some(Direction::West),
+            std::cmp::Ordering::Less => return Some(Direction::East),
             std::cmp::Ordering::Equal => (),
-            std::cmp::Ordering::Greater => return Some(Direction::East),
+            std::cmp::Ordering::Greater => return Some(Direction::West),
         }
 
         match self.start.row.cmp(&self.end.row) {
@@ -363,8 +363,6 @@ impl Span {
         other = self.normalize_direction(other);
 
         // `direction = self.direction <or> other.direction <or> default`
-        //
-        // There has got to be a cleaner syntax for this.
         let direction = self
             .direction()
             .or_else(|| {
